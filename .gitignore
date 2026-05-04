@@ -5,7 +5,24 @@ __pycache__/
 .venv/
 
 # Generated outputs — too large for git
+results/
+results/**
+checkpoints/
+checkpoints/**
 logs/
+logs/**
+
+# Large model / training files (belt-and-suspenders)
+*.safetensors
+*.pt
+*.bin
+*.onnx
+
+# Competition data — private test set must not be committed
+data/private.jsonl
+
+# Jupyter
+.ipynb_checkpoints/
 
 # LaTeX build artefacts
 *.aux
@@ -16,5 +33,3 @@ logs/
 *.log
 *.out
 *.synctex.gz
-
-.ipynb_checkpoints/
