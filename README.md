@@ -2,7 +2,8 @@
 
 **Model**: Qwen/Qwen3-4B-Thinking-2507 &nbsp;|&nbsp; **Team**: Rohan Raval, Tanishq Rathore, Vishudh Shah
 
-> **Writing the milestone report or running experiments on DataHub?** Read [`PROJECT_GUIDE.md`](PROJECT_GUIDE.md) — it covers all models, how to run them, resume behaviour if jobs are killed, and a section-by-section guide for the report.
+> **Running experiments?** See [`DATAHUB_GUIDE.md`](DATAHUB_GUIDE.md) — SSH, GPU setup, venv install, tmux, full experiment run.  
+> **Writing the report?** See [`PROJECT_GUIDE.md`](PROJECT_GUIDE.md) — model descriptions, results format, LaTeX table template.
 
 ---
 
