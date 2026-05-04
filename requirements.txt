@@ -5,6 +5,7 @@
 --extra-index-url https://pypi.org/simple
 
 torch>=2.4
+torchvision>=0.21     # must match torch; 0.21 is for torch 2.6 — shadows incompatible system torchvision
 
 # ── HuggingFace stack ──────────────────────────────────────────────────────────
 transformers>=4.45.0
