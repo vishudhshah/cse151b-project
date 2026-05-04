@@ -4,11 +4,7 @@ __pycache__/
 *.pyo
 .venv/
 
-# Generated outputs — too large for git
-results/
-results/**
-checkpoints/
-checkpoints/**
+# Logs — runtime output, not useful to track
 logs/
 logs/**
 
