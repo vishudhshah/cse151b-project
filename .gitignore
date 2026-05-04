@@ -9,9 +9,6 @@ results/
 checkpoints/
 logs/
 
-# Competition data — private test set must not be committed
-data/private.jsonl
-
 # LaTeX build artefacts
 *.aux
 *.bbl
