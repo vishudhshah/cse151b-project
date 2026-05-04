@@ -84,9 +84,8 @@ from transformers import (
     AutoTokenizer,
     BitsAndBytesConfig,
     TrainerCallback,
-    TrainingArguments,
 )
-from trl import SFTTrainer
+from trl import SFTConfig, SFTTrainer
 
 # ── Configuration ──────────────────────────────────────────────────────────────
 
@@ -291,8 +290,8 @@ def main():
     model = get_peft_model(model, lora_config)
     model.print_trainable_parameters()
 
-    # ── Training arguments ─────────────────────────────────────────────────────
-    training_args = TrainingArguments(
+    # ── Training arguments (SFTConfig = TrainingArguments + SFT-specific fields) ─
+    training_args = SFTConfig(
         output_dir=str(out_dir),
         num_train_epochs=args.epochs,
         max_steps=args.max_steps,          # -1 means "use epochs"
@@ -300,7 +299,7 @@ def main():
         gradient_accumulation_steps=8,     # effective batch = 8
         learning_rate=args.lr,
         lr_scheduler_type="cosine",
-        warmup_ratio=0.03,
+        warmup_steps=10,
         optim="paged_adamw_8bit",
         bf16=True,
         logging_steps=10,
@@ -309,16 +308,16 @@ def main():
         report_to="none",                  # disable wandb/mlflow for DataHub
         dataloader_num_workers=0,
         remove_unused_columns=False,
+        dataset_text_field="text",         # moved here from SFTTrainer in trl 1.x
+        max_seq_length=4096,               # moved here from SFTTrainer in trl 1.x
     )
 
     # ── Trainer ────────────────────────────────────────────────────────────────
     trainer = SFTTrainer(
         model=model,
-        tokenizer=tokenizer,
+        processing_class=tokenizer,        # replaces 'tokenizer' in trl 1.x
         train_dataset=dataset,
         args=training_args,
-        dataset_text_field="text",
-        max_seq_length=4096,
         callbacks=[LossLogger(log_path)],
     )
 
