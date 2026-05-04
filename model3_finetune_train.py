@@ -86,7 +86,7 @@ from transformers import (
     TrainerCallback,
     TrainingArguments,
 )
-from trl import SFTTrainer, DataCollatorForCompletionOnlyLM
+from trl import SFTTrainer
 
 # ── Configuration ──────────────────────────────────────────────────────────────
 
