@@ -590,16 +590,32 @@ nvidia-smi
 cd ~/CSE151B/Project          # adjust to wherever you uploaded the files
 ls                            # should list model1_*.py, model2_*.py, model3_*.py, data/, etc.
 
-# 3. Install all dependencies
-#    requirements.txt sets the PyTorch CUDA 12.4 whl server as the primary
-#    index so pip picks a driver-compatible torch build. It also installs
-#    torchvision>=0.21 in user space to shadow the incompatible system version
-#    (/opt/conda has torchvision 0.17 which crashes with torch 2.6).
-pip install -r requirements.txt -q
+# 3. Request an A30 GPU node (do this BEFORE launching JupyterLab)
+#    From the DSMLP login node:
+#      launch.sh -v a30 -g 1 -c 8 -m 32
+#    Then reconnect via VPN and open a terminal in JupyterLab.
 
-# 4. Confirm torch sees the GPU
+# 4. Create the venv and install dependencies
+#    (instructor-tested setup for A30 / CUDA 12.2)
+cat > constraints.txt << 'EOF'
+torch==2.5.1
+torchvision==0.20.1
+torchaudio==2.5.1
+EOF
+
+uv venv .venv --seed
+source .venv/bin/activate
+
+uv pip install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 \
+    --index-url https://download.pytorch.org/whl/cu121
+
+uv pip install sympy numpy transformers vllm tqdm bitsandbytes \
+    antlr4-python3-runtime==4.11.1 accelerate peft trl datasets \
+    -c constraints.txt
+
+# 5. Confirm torch sees the GPU
 python -c "import torch; print(torch.__version__, torch.cuda.is_available())"
-# Expected: 2.6.x+cu124  True
+# Expected: 2.5.1+cu121  True
 
 # 5. Confirm private.jsonl is present (needed for Kaggle submission)
 ls data/
@@ -610,7 +626,7 @@ ls data/
 mkdir -p logs results checkpoints/model3_qlora
 ```
 
-> **Why not `.venv`?** The `.venv` folder is not committed to git and won't exist after a fresh clone. `requirements.txt` is the portable alternative — it installs into whatever Python environment DataHub provides.
+> `.venv/` is gitignored — recreate it with the commands above on each new DataHub session. `requirements.txt` records the exact package versions.
 
 ---
 

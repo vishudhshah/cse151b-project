@@ -1,11 +1,17 @@
-# ── PyTorch — must come from the CUDA 12.4 wheel index, not PyPI ─────────────
-# PyPI now ships torch+cu130 which requires a newer NVIDIA driver than DataHub
-# has. Setting the primary index to the PyTorch whl server pins the CUDA build.
---index-url https://download.pytorch.org/whl/cu124
+# ── PyTorch — pinned to versions tested on DataHub A30 (CUDA 12.2 driver) ────
+# Install torch first before this file, then use this file with -c constraints.txt
+# See setup instructions in PROJECT_GUIDE.md Section 10 or README.md
+#
+# Quick setup (copy-paste):
+#   uv venv .venv --seed && source .venv/bin/activate
+#   uv pip install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 --index-url https://download.pytorch.org/whl/cu121
+#   uv pip install -r requirements.txt -c constraints.txt
+--index-url https://download.pytorch.org/whl/cu121
 --extra-index-url https://pypi.org/simple
 
-torch>=2.4
-torchvision>=0.21     # must match torch; 0.21 is for torch 2.6 — shadows incompatible system torchvision
+torch==2.5.1
+torchvision==0.20.1
+torchaudio==2.5.1
 
 # ── HuggingFace stack ──────────────────────────────────────────────────────────
 transformers>=4.45.0
