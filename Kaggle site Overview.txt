@@ -1,0 +1,26 @@
+CSE 151B Spring 2026 Competition
+Pushing the Boundary of LLM Mathematical Reasoning
+
+
+
+Overview
+This competition challenges participants to improve the mathematical reasoning capabilities of a small-sized language model [Qwen3-4B]; using only model-intrinsic methods such as prompt engineering, supervised fine-tuning, and reinforcement learning. Reliable mathematical reasoning unlocks the potential for LLMs to accelerate scientific discovery, automate complex quantitative analysis, and serve as accessible problem-solving tools across STEM disciplines. Your approaches will be evaluated on unified accuracy from high-school to graduate level math problems.
+
+Note: To enforce fairness, you are required to use Qwen/Qwen3-4B-Thinking-2507 model (can be trained with your proposed methods) for generating the final responses, no alternative models allowed.
+
+Description
+Large language models have shown remarkable progress in mathematical reasoning, yet smaller, open-weight models still struggle with problems requiring multi-step logic, symbolic manipulation, and quantitative precision. This competition simulates the real-world demand for self-sufficient yet powerful small LLMs that can reason effectively without relying on larger models or external tools. You'll push the boundaries of what a 4-billion-parameter model can achieve on challenging math benchmarks without relying on external APIs or tool-augmented generation at test time.
+
+The evaluation combines multiple complementary benchmarks into a single unified accuracy metric. Problems span a range of mathematical domains, difficulty levels, and response formats, including both free-form and multiple-choice questions, to provide a comprehensive assessment of your model's reasoning capabilities.
+
+Participants may use any model-intrinsic strategy to improve performance, including but not limited to:
+
+Prompt engineering — chain-of-thought, few-shot exemplars, self-consistency, progressive-hint prompting, and other inference-time techniques
+Supervised fine-tuning — LoRA, QLoRA, or full fine-tuning on any publicly available training data
+Reinforcement learning — GRPO, DPO, outcome-based reward modeling, and related alignment methods
+External model calls, API access, and tool-augmented generation (e.g., code interpreters or calculators) are not permitted at inference time. Success requires extracting the most mathematical reasoning capability possible from a single mid-sized model through careful optimization.
+
+Evaluation
+Submissions are evaluated using unified accuracy, calculated as the total number of correctly answered questions divided by the total number of questions across all benchmarks, with each question weighted equally regardless of source or difficulty.
+
+The public and private test sets follow similar distributions in terms of difficulty proportions, question domains, and response formats. The leaderboard reports accuracy on approximately 30% of the private test set. Submissions are unlimited throughout the competition. Final team rankings are determined by performance on the full private test set, which is revealed only after the submission deadline.
