@@ -591,13 +591,15 @@ cd ~/CSE151B/Project          # adjust to wherever you uploaded the files
 ls                            # should list model1_*.py, model2_*.py, model3_*.py, data/, etc.
 
 # 3. Install all dependencies
-#    requirements.txt forces torch from the CUDA 12.4 whl index so it works
-#    with DataHub's CUDA 12.8 driver (PyPI now ships torch+cu130 which does not).
+#    requirements.txt sets the PyTorch CUDA 12.4 whl server as the primary
+#    index so pip picks a driver-compatible torch build. It also installs
+#    torchvision>=0.21 in user space to shadow the incompatible system version
+#    (/opt/conda has torchvision 0.17 which crashes with torch 2.6).
 pip install -r requirements.txt -q
 
 # 4. Confirm torch sees the GPU
 python -c "import torch; print(torch.__version__, torch.cuda.is_available())"
-# Expected: 2.x.x  True
+# Expected: 2.6.x+cu124  True
 
 # 5. Confirm private.jsonl is present (needed for Kaggle submission)
 ls data/
@@ -641,23 +643,27 @@ The training script (**model3_finetune_train**) saves a full checkpoint at the e
 
 ### Step-by-step commands
 
-#### Step 0 — Smoke tests (~2 min)
+#### Step 0 — Smoke tests (~5–10 min)
 
 Always run these before committing GPU hours to a full run.
 
 ```bash
-python model1_prompt_engineering.py --variant v0_baseline --limit 5
-# Expected: 5 responses printed + a small accuracy table
+# --max_tokens 2048 caps the thinking chain so each question finishes in ~1 min
+# instead of up to 10 min. Use the default (16384) for real scored runs.
+python model1_prompt_engineering.py --variant v0_baseline --limit 5 --max_tokens 2048
+# Expected: model loads, 5 responses generated, small accuracy table printed
 
-python model2_sampling_voting.py --experiment voting_n3 --limit 5
-# Expected: 3 samples generated for each of 5 questions + accuracy table
+python model2_sampling_voting.py --experiment voting_n3 --limit 5 --max_tokens 2048
+# Expected: 3 samples generated for each of 5 questions, accuracy table printed
 
 python model3_finetune_train.py --max_steps 5 --subset 50
 # Expected: downloads MATH dataset, prints training config, runs 5 steps, saves adapter
 
-python model3_finetune_infer.py --checkpoint checkpoints/model3_qlora --limit 5
+python model3_finetune_infer.py --checkpoint checkpoints/model3_qlora --limit 5 --max_tokens 2048
 # Expected: loads adapter, generates 5 responses, prints accuracy
 ```
+
+> **Why is the progress bar stuck on the first question?** The thinking model generates a full `<think>…</think>` chain before answering — up to 16,384 tokens. On an A100 at ~25 tok/s that is up to 11 minutes for a single hard question. The progress bar only ticks after each complete generation, so it looks frozen until the first one finishes. `--max_tokens 2048` speeds this up for testing at the cost of cutting off longer reasoning chains.
 
 If any step fails, fix the error before proceeding (usually a missing package or wrong working directory).
 
@@ -880,6 +886,9 @@ kill <PID>
 | `nvidia-smi: command not found` | You are on a CPU-only node — request a GPU node from DataHub |
 | `CUDA out of memory` | Try `--gpu 1` to use a different GPU; check VRAM with `nvidia-smi` |
 | `No module named 'trl'` | Run `pip install -r requirements.txt -q` |
+| `torch.cuda.is_available()` returns `False` | Run `pip uninstall torch -y && pip install "torch>=2.4" --index-url https://download.pytorch.org/whl/cu124` |
+| `RuntimeError: operator torchvision::nms does not exist` | Run `pip install "torchvision>=0.21" --index-url https://download.pytorch.org/whl/cu124` — system torchvision is incompatible with torch 2.6 |
+| Progress bar stuck on first question | Normal — the thinking model generates up to 16,384 tokens before answering. First question also compiles CUDA kernels. Add `--max_tokens 2048` for faster smoke tests. |
 | `FileNotFoundError: data/public.jsonl` | Run `cd ~/CSE151B/Project` to make sure you are in the project root |
 | HuggingFace download hangs or fails | Set `--hf_cache /datasets/$USER/hf_cache` (larger quota than home dir) |
 | Training loss is NaN from step 1 | Reduce learning rate with `--lr 1e-4`; check `training_log.jsonl` |
