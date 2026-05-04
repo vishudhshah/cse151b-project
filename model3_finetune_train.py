@@ -309,7 +309,7 @@ def main():
         dataloader_num_workers=0,
         remove_unused_columns=False,
         dataset_text_field="text",         # moved here from SFTTrainer in trl 1.x
-        max_seq_length=4096,               # moved here from SFTTrainer in trl 1.x
+        max_length=4096,                   # renamed from max_seq_length in trl 1.1+
     )
 
     # ── Trainer ────────────────────────────────────────────────────────────────
