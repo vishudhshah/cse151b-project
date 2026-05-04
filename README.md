@@ -33,17 +33,23 @@
 ├── model3_finetune_infer.py      # Model 3: inference with fine-tuned model
 │
 ├── requirements.txt              # All Python dependencies
-├── PROJECT_GUIDE.md              # ← Full documentation for teammates
+├── DATAHUB_GUIDE.md              # ← SSH, GPU setup, running experiments
+├── PROJECT_GUIDE.md              # ← Model details, milestone report template
 └── README.md                     # This file
 ```
 
 ## Setup
 
-```bash
-pip install -r requirements.txt -q
-```
+See [`DATAHUB_GUIDE.md`](DATAHUB_GUIDE.md) for the full setup. Quick version:
 
-`requirements.txt` sets the PyTorch CUDA 12.4 wheel index as the primary source so `pip` picks a driver-compatible torch build (DataHub's driver supports up to CUDA 12.8; PyPI now ships torch+cu130 which requires a newer driver).
+```bash
+uv venv .venv --seed && source .venv/bin/activate
+uv pip install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 \
+    --index-url https://download.pytorch.org/whl/cu121
+uv pip install sympy numpy transformers vllm tqdm bitsandbytes \
+    antlr4-python3-runtime==4.11.1 accelerate peft trl datasets \
+    -c constraints.txt
+```
 
 ## Quick Commands
 
@@ -67,4 +73,4 @@ python model3_finetune_train.py --epochs 3
 python model3_finetune_infer.py --checkpoint checkpoints/model3_qlora
 ```
 
-See [`PROJECT_GUIDE.md`](PROJECT_GUIDE.md) for the full DataHub run guide, resume behaviour, and milestone report instructions.
+See [`DATAHUB_GUIDE.md`](DATAHUB_GUIDE.md) for the full run guide and [`PROJECT_GUIDE.md`](PROJECT_GUIDE.md) for model details and the milestone report template.
