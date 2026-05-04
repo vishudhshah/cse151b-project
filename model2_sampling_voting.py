@@ -367,6 +367,9 @@ def main():
                         help="Which experiment to run (default: all)")
     parser.add_argument("--limit", type=int, default=None,
                         help="Only evaluate on first N questions")
+    parser.add_argument("--max_tokens", type=int, default=MAX_TOKENS,
+                        help=f"Max new tokens per response (default: {MAX_TOKENS}). "
+                             "Use 2048 for fast smoke tests.")
     parser.add_argument("--gpu", default="0", help="CUDA_VISIBLE_DEVICES (default: 0)")
     parser.add_argument("--data", default=DATA_PATH)
     parser.add_argument("--prompt", default="v1_enhanced_cot",
@@ -375,6 +378,8 @@ def main():
     args = parser.parse_args()
 
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
+    global MAX_TOKENS
+    MAX_TOKENS = args.max_tokens
 
     data = [json.loads(line) for line in open(args.data)]
     if args.limit:

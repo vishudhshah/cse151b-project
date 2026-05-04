@@ -323,11 +323,15 @@ def main():
                         help="Prompt variant to run (default: all)")
     parser.add_argument("--limit", type=int, default=None,
                         help="Only evaluate on first N questions")
+    parser.add_argument("--max_tokens", type=int, default=MAX_TOKENS,
+                        help=f"Max new tokens per response (default: {MAX_TOKENS}). "
+                             "Use 2048 for fast smoke tests.")
     parser.add_argument("--gpu", default="0", help="CUDA_VISIBLE_DEVICES (default: 0)")
     parser.add_argument("--data", default=DATA_PATH, help="Path to JSONL dataset")
     args = parser.parse_args()
 
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
+    SAMPLING_PARAMS["max_new_tokens"] = args.max_tokens
 
     # Load dataset
     data = [json.loads(line) for line in open(args.data)]

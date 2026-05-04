@@ -198,6 +198,9 @@ def main():
     parser.add_argument("--data",       default=DATA_PATH,
                         help="Input JSONL (public.jsonl or private.jsonl)")
     parser.add_argument("--limit",      type=int, default=None)
+    parser.add_argument("--max_tokens", type=int, default=MAX_TOKENS,
+                        help=f"Max new tokens per response (default: {MAX_TOKENS}). "
+                             "Use 2048 for fast smoke tests.")
     parser.add_argument("--gpu",        default="0")
     parser.add_argument("--no_eval",    action="store_true",
                         help="Skip scoring (use for private test set)")
@@ -206,6 +209,7 @@ def main():
     args = parser.parse_args()
 
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
+    SAMPLING_PARAMS["max_new_tokens"] = args.max_tokens
 
     data = [json.loads(line) for line in open(args.data)]
     if args.limit:
