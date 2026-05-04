@@ -108,23 +108,50 @@ LORA_TARGET_MODULES = [
 # ── Dataset Loading ────────────────────────────────────────────────────────────
 
 def load_math_dataset(subset: int = None):
-    """Load MATH dataset; tries lighteval/MATH then hendrycks/competition_math."""
+    """
+    Load MATH training data. Tries two sources in order:
+
+    1. EleutherAI/hendrycks_math — same 7,500 problems as the original MATH
+       dataset but in standard Parquet format (no loading scripts required).
+       Loads all 7 subjects and concatenates them.
+    2. HuggingFaceH4/MATH-500 — 500-problem evaluation set; used as a fallback
+       if the full dataset is unreachable.
+    """
+    from datasets import concatenate_datasets
     print("Loading MATH training dataset...")
 
-    for dataset_id in ["lighteval/MATH", "hendrycks/competition_math"]:
-        try:
-            ds = load_dataset(dataset_id, split="train", trust_remote_code=True)
-            print(f"  Loaded {len(ds)} examples from {dataset_id}")
-            if subset:
-                ds = ds.select(range(min(subset, len(ds))))
-                print(f"  Using first {len(ds)} examples (--subset {subset})")
-            return ds
-        except Exception as e:
-            print(f"  Could not load {dataset_id}: {e}")
+    # ── Option 1: full MATH dataset (7,500 problems across 7 subjects) ──────────
+    SUBJECTS = [
+        "algebra", "counting_and_probability", "geometry",
+        "intermediate_algebra", "number_theory", "prealgebra", "precalculus",
+    ]
+    try:
+        splits = [
+            load_dataset("EleutherAI/hendrycks_math", name=s, split="train")
+            for s in SUBJECTS
+        ]
+        ds = concatenate_datasets(splits)
+        print(f"  Loaded {len(ds)} examples from EleutherAI/hendrycks_math (all subjects)")
+        if subset:
+            ds = ds.select(range(min(subset, len(ds))))
+            print(f"  Using first {len(ds)} examples (--subset {subset})")
+        return ds
+    except Exception as e:
+        print(f"  EleutherAI/hendrycks_math failed: {e}")
+
+    # ── Option 2: MATH-500 fallback ──────────────────────────────────────────────
+    try:
+        ds = load_dataset("HuggingFaceH4/MATH-500", split="test")
+        print(f"  Loaded {len(ds)} examples from HuggingFaceH4/MATH-500 (fallback)")
+        if subset:
+            ds = ds.select(range(min(subset, len(ds))))
+        return ds
+    except Exception as e:
+        print(f"  HuggingFaceH4/MATH-500 failed: {e}")
 
     raise RuntimeError(
-        "Could not load any MATH dataset. Check your internet connection or "
-        "set HF_DATASETS_OFFLINE=0."
+        "Could not load any MATH dataset. Check HuggingFace Hub access "
+        "and that HF_DATASETS_OFFLINE is not set to 1."
     )
 
 # ── Data Formatting ────────────────────────────────────────────────────────────
