@@ -2,6 +2,8 @@
 
 Everything you need to run experiments on UCSD DSMLP from scratch.
 
+> **Official UCSD docs**: [KB0032269 — DSMLP getting started guide](https://support.ucsd.edu/services?id=kb_article_view&sysparm_article=KB0032269) — covers SSH setup, `launch.sh` options, and general DSMLP usage.
+
 ---
 
 ## Table of Contents
