@@ -590,8 +590,9 @@ nvidia-smi
 cd ~/CSE151B/Project          # adjust to wherever you uploaded the files
 ls                            # should list model1_*.py, model2_*.py, model3_*.py, data/, etc.
 
-# 3. Install all dependencies from requirements.txt
-#    DataHub already has a CUDA-enabled torch, so pip resolves everything else.
+# 3. Install all dependencies
+#    requirements.txt forces torch from the CUDA 12.4 whl index so it works
+#    with DataHub's CUDA 12.8 driver (PyPI now ships torch+cu130 which does not).
 pip install -r requirements.txt -q
 
 # 4. Confirm torch sees the GPU

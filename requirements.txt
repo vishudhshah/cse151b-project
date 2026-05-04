@@ -1,26 +1,25 @@
-# ── Core — inference + scoring (all models) ───────────────────────────────────
-# Install with:  pip install -r requirements.txt
+# ── PyTorch — must come from the CUDA 12.4 wheel index, not PyPI ─────────────
+# PyPI now ships torch+cu130 which requires a newer NVIDIA driver than DataHub
+# has. Setting the primary index to the PyTorch whl server pins the CUDA build.
+--index-url https://download.pytorch.org/whl/cu124
+--extra-index-url https://pypi.org/simple
 
-# PyTorch: on DataHub a CUDA-enabled torch is already present; skip or let pip
-# resolve it as a transitive dep.  For a fresh machine uncomment the line below.
-# torch>=2.1
+torch>=2.4
 
-# HuggingFace stack
+# ── HuggingFace stack ──────────────────────────────────────────────────────────
 transformers>=4.45.0
 accelerate>=0.27.0
 bitsandbytes>=0.43.0          # 4-bit (NF4) quantisation
 
-# Scoring / math
+# ── Scoring / math ─────────────────────────────────────────────────────────────
 sympy>=1.12
 antlr4-python3-runtime==4.11.1  # exact version required by sympy.parsing.latex
 numpy>=1.24
 
-# Utilities
+# ── Utilities ──────────────────────────────────────────────────────────────────
 tqdm>=4.66
 
-# ── Fine-tuning extras — Model 3 only ─────────────────────────────────────────
-# Install with:  pip install -r requirements.txt -r requirements-finetune.txt
-# OR just add these to the command above if you need everything at once.
+# ── Fine-tuning — Model 3 only ─────────────────────────────────────────────────
 peft>=0.10.0
 trl>=0.8.6
 datasets>=2.18.0

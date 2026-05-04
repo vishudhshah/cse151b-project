@@ -42,7 +42,7 @@
 pip install -r requirements.txt -q
 ```
 
-DataHub already provides a CUDA-enabled PyTorch, so this installs everything else (transformers, bitsandbytes, peft, trl, sympy, etc.).
+`requirements.txt` sets the PyTorch CUDA 12.4 wheel index as the primary source so `pip` picks a driver-compatible torch build (DataHub's driver supports up to CUDA 12.8; PyPI now ships torch+cu130 which requires a newer driver).
 
 ## Quick Commands
 
