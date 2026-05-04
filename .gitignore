@@ -5,8 +5,6 @@ __pycache__/
 .venv/
 
 # Generated outputs — too large for git
-results/
-checkpoints/
 logs/
 
 # LaTeX build artefacts
@@ -18,3 +16,5 @@ logs/
 *.log
 *.out
 *.synctex.gz
+
+.ipynb_checkpoints/
