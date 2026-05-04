@@ -1,0 +1,26 @@
+# ── Core — inference + scoring (all models) ───────────────────────────────────
+# Install with:  pip install -r requirements.txt
+
+# PyTorch: on DataHub a CUDA-enabled torch is already present; skip or let pip
+# resolve it as a transitive dep.  For a fresh machine uncomment the line below.
+# torch>=2.1
+
+# HuggingFace stack
+transformers>=4.45.0
+accelerate>=0.27.0
+bitsandbytes>=0.43.0          # 4-bit (NF4) quantisation
+
+# Scoring / math
+sympy>=1.12
+antlr4-python3-runtime==4.11.1  # exact version required by sympy.parsing.latex
+numpy>=1.24
+
+# Utilities
+tqdm>=4.66
+
+# ── Fine-tuning extras — Model 3 only ─────────────────────────────────────────
+# Install with:  pip install -r requirements.txt -r requirements-finetune.txt
+# OR just add these to the command above if you need everything at once.
+peft>=0.10.0
+trl>=0.8.6
+datasets>=2.18.0

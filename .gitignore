@@ -1,2 +1,23 @@
-.claude
-__pycache__
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+
+# Generated outputs — too large for git
+results/
+checkpoints/
+logs/
+
+# Competition data — private test set must not be committed
+data/private.jsonl
+
+# LaTeX build artefacts
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.synctex.gz

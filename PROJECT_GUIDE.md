@@ -470,8 +470,8 @@ checkpoints/model3_qlora/
 ### Running — Training
 
 ```bash
-# Install extra dependencies (not in starter venv)
-pip install trl peft datasets accelerate
+# All dependencies including peft/trl/datasets are in requirements.txt
+pip install -r requirements.txt -q
 
 # Quick smoke test (20 steps, 100 examples)
 python model3_finetune_train.py --max_steps 20 --subset 100
@@ -590,13 +590,13 @@ nvidia-smi
 cd ~/CSE151B/Project          # adjust to wherever you uploaded the files
 ls                            # should list model1_*.py, model2_*.py, model3_*.py, data/, etc.
 
-# 3. Activate the virtual environment
-source .venv/bin/activate
+# 3. Install all dependencies from requirements.txt
+#    DataHub already has a CUDA-enabled torch, so pip resolves everything else.
+pip install -r requirements.txt -q
+
+# 4. Confirm torch sees the GPU
 python -c "import torch; print(torch.__version__, torch.cuda.is_available())"
 # Expected: 2.x.x  True
-
-# 4. Install extra packages for Model 3 (once only)
-pip install trl peft datasets accelerate -q
 
 # 5. Confirm private.jsonl is present (needed for Kaggle submission)
 ls data/
@@ -606,6 +606,8 @@ ls data/
 # 6. Create output directories
 mkdir -p logs results checkpoints/model3_qlora
 ```
+
+> **Why not `.venv`?** The `.venv` folder is not committed to git and won't exist after a fresh clone. `requirements.txt` is the portable alternative — it installs into whatever Python environment DataHub provides.
 
 ---
 
@@ -876,7 +878,7 @@ kill <PID>
 |-------|-----|
 | `nvidia-smi: command not found` | You are on a CPU-only node — request a GPU node from DataHub |
 | `CUDA out of memory` | Try `--gpu 1` to use a different GPU; check VRAM with `nvidia-smi` |
-| `No module named 'trl'` | Run `pip install trl peft datasets accelerate -q` |
+| `No module named 'trl'` | Run `pip install -r requirements.txt -q` |
 | `FileNotFoundError: data/public.jsonl` | Run `cd ~/CSE151B/Project` to make sure you are in the project root |
 | HuggingFace download hangs or fails | Set `--hf_cache /datasets/$USER/hf_cache` (larger quota than home dir) |
 | Training loss is NaN from step 1 | Reduce learning rate with `--lr 1e-4`; check `training_log.jsonl` |

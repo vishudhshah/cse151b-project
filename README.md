@@ -31,33 +31,39 @@
 ├── model3_finetune_train.py      # Model 3: QLoRA fine-tuning (training)
 ├── model3_finetune_infer.py      # Model 3: inference with fine-tuned model
 │
+├── requirements.txt              # All Python dependencies
 ├── PROJECT_GUIDE.md              # ← Full documentation for teammates
 └── README.md                     # This file
 ```
 
+## Setup
+
+```bash
+pip install -r requirements.txt -q
+```
+
+DataHub already provides a CUDA-enabled PyTorch, so this installs everything else (transformers, bitsandbytes, peft, trl, sympy, etc.).
+
 ## Quick Commands
 
 ```bash
-# Baseline (interactive, run in Jupyter)
-jupyter notebook starter_code_cse151b_comp.ipynb
+# Smoke test — confirm everything works (runs in ~2 min)
+python model1_prompt_engineering.py --variant v0_baseline --limit 5
 
-# Model 1 — smoke test
-python model1_prompt_engineering.py --variant v0_baseline --limit 20
-
-# Model 1 — full run, all variants
+# Model 1 — all 4 prompt variants (~50 min)
 python model1_prompt_engineering.py --variant all
 
-# Model 2 — temperature sweep
+# Model 2 — temperature sweep (~60 min)
 python model2_sampling_voting.py --experiment temp_sweep
 
-# Model 2 — majority voting (5 samples)
+# Model 2 — majority voting, 5 samples (~60 min)
 python model2_sampling_voting.py --experiment voting_n5
 
-# Model 3 — fine-tune (needs: pip install trl peft datasets)
+# Model 3 — fine-tune (~6 hours)
 python model3_finetune_train.py --epochs 3
 
-# Model 3 — inference with fine-tuned model
+# Model 3 — inference with fine-tuned model (~12 min)
 python model3_finetune_infer.py --checkpoint checkpoints/model3_qlora
 ```
 
-See [`PROJECT_GUIDE.md`](PROJECT_GUIDE.md) for full details.
+See [`PROJECT_GUIDE.md`](PROJECT_GUIDE.md) for the full DataHub run guide, resume behaviour, and milestone report instructions.
