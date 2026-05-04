@@ -359,6 +359,7 @@ def run_voting(n_samples: int, llm, tokenizer, data: list, prompt_variant: str,
 # ── Entry Point ────────────────────────────────────────────────────────────────
 
 def main():
+    global MAX_TOKENS
     parser = argparse.ArgumentParser(
         description="Model 2: Sampling Parameters & Majority Voting — CSE 151B"
     )
@@ -378,7 +379,6 @@ def main():
     args = parser.parse_args()
 
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
-    global MAX_TOKENS
     MAX_TOKENS = args.max_tokens
 
     data = [json.loads(line) for line in open(args.data)]
