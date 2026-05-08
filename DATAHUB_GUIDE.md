@@ -76,7 +76,8 @@ Open that URL in your browser (**must be on VPN**). Then open a terminal: **File
 Verify you have a GPU:
 ```bash
 nvidia-smi
-# Should show: A30 (24 GB), CUDA 12.8
+# GPU varies by node — e.g. RTX PRO 6000 Blackwell (MIG slice, 24 GB) or A30 (24 GB)
+# CUDA Version: 13.0
 ```
 
 ---
