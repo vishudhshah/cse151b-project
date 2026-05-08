@@ -40,28 +40,26 @@ Use the course-specific script (instructor-configured image with CUDA 12.8, addi
 
 ```bash
 export K8S_TIMEOUT_SECONDS=43200   # 12 hours; must be set before launch
-launch-sp26-cuda128.sh -l gpu-class=medium -W CSE151B_SP26_A00 -g 1 -c 8 -m 32
+launch-sp26-cuda128.sh -l gpu-class=medium -W CSE151B_SP26_A00 -g 1 -c 16 -m 64
 ```
 
 - `-l gpu-class=medium` — Kubernetes label selector; targets the GPU pool provisioned for this course
 - `-W CSE151B_SP26_A00` — mounts the course-specific workspace directory and applies the course resource quota
 - `-g 1` — 1 GPU
-- `-c 8` — 8 CPUs
-- `-m 32` — 32 GB RAM
-
-> Instructor benchmark: 5 responses in 65 seconds on an A30 using this image.
+- `-c 16` — 16 CPUs
+- `-m 64` — 64 GB RAM
 
 If this hangs on "Pending" for more than ~30 seconds, fall back to the general script:
 
 ```bash
 # Try GPU types in order of availability: a30, a5000, a100, h100
-launch.sh -v a30 -g 1 -c 8 -m 32 -W CSE151B_SP26_A00
+launch.sh -v a30 -g 1 -c 16 -m 64 -W CSE151B_SP26_A00
 ```
 
 Add `-s` to either command if you want to skip Jupyter and use only the terminal (saves ~10 seconds on startup and avoids the browser step):
 
 ```bash
-launch-sp26-cuda128.sh -l gpu-class=medium -W CSE151B_SP26_A00 -g 1 -c 8 -m 32 -s
+launch-sp26-cuda128.sh -l gpu-class=medium -W CSE151B_SP26_A00 -g 1 -c 16 -m 64 -s
 ```
 
 When it starts, you'll see a URL like:
@@ -299,7 +297,7 @@ The large weight files (`*.safetensors`, `*.pt`, `*.bin`) are gitignored automat
 
 All inference scripts write results one question at a time. If a session dies mid-run:
 
-1. Launch a new pod: `launch-sp26-cuda128.sh -l gpu-class=medium -W CSE151B_SP26_A00 -g 1 -c 8 -m 32`
+1. Launch a new pod: `launch-sp26-cuda128.sh -l gpu-class=medium -W CSE151B_SP26_A00 -g 1 -c 16 -m 64`
 2. `cd` into the project, `source .venv/bin/activate`
 3. Re-run the **exact same command** — it detects already-completed questions and skips them
 
@@ -316,7 +314,7 @@ python model3_finetune_train.py --epochs 3 \
 
 | Error | Fix |
 |-------|-----|
-| `launch-sp26-cuda128.sh` hangs on Pending | Use fallback: `launch.sh -v a30 -g 1 -c 8 -m 32` |
+| `launch-sp26-cuda128.sh` hangs on Pending | Use fallback: `launch.sh -v a30 -g 1 -c 16 -m 64` |
 | `uv: command not found` | Run `export PATH="$HOME/.local/bin:$PATH"` |
 | `source .venv/bin/activate` fails | Venv doesn't exist on this pod — run the full install from Section 5 |
 | `torch.cuda.is_available()` is False | CUDA driver mismatch — re-install torch: `uv pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/cu121` |
