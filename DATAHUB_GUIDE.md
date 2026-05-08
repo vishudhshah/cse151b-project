@@ -114,7 +114,14 @@ The first `git push` will prompt for your GitHub username and a personal access 
 
 ## 5. Install dependencies
 
-Run this once per new pod (takes ~3 min):
+**Returning to the same pod?** The venv persists — skip this section entirely and just run:
+
+```bash
+export PATH="$HOME/.local/bin:$PATH"
+source ~/CSE\ 151B/cse151b-project/.venv/bin/activate
+```
+
+**Got a new pod?** Run the full setup below (takes ~3 min):
 
 ```bash
 cd ~/CSE\ 151B/cse151b-project
@@ -148,8 +155,6 @@ export HF_TOKEN=hf_your_token_here
 python -c "import torch; print(torch.__version__, torch.cuda.is_available())"
 # Expected: 2.5.1+cu121  True
 ```
-
-> **Every new session**: you only need `source .venv/bin/activate` and `export PATH="$HOME/.local/bin:$PATH"` — the venv and packages persist on disk between sessions on the same pod. If you get a new pod, re-run the full setup above.
 
 ---
 
