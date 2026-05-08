@@ -27,7 +27,7 @@ Everything you need to run experiments on UCSD DSMLP from scratch.
 From your laptop (must be on UCSD VPN or on campus):
 
 ```bash
-ssh v8shah@dsmlp-login.ucsd.edu
+ssh <username>@dsmlp-login.ucsd.edu
 ```
 
 You land on the login node — this is a CPU-only machine just for launching jobs. Do not run experiments here.
@@ -72,7 +72,7 @@ launch-sp26-cuda128.sh -l gpu-class=medium -W CSE151B_SP26_A00 -g 1 -c 8 -m 32
 
 When it starts, you'll see a URL like:
 ```
-You may access your Jupyter notebook at: http://dsmlp-login:XXXXX/user/v8shah/?token=...
+You may access your Jupyter notebook at: http://dsmlp-login:XXXXX/user/<username>/?token=...
 ```
 
 ---
@@ -94,7 +94,7 @@ nvidia-smi
 If this is a fresh node (no project files yet):
 ```bash
 cd ~
-git clone https://github.com/vishudhshah/cse151b-project.git "CSE 151B/cse151b-project"
+git clone https://github.com/vishudhshah/cse151b-project.git  # team repo URL "CSE 151B/cse151b-project"
 cd "CSE 151B/cse151b-project"
 ```
 
@@ -110,7 +110,7 @@ Each DataHub pod is a fresh machine with no SSH keys. Use HTTPS with a stored to
 
 ```bash
 git config --global credential.helper store
-git remote set-url origin https://github.com/vishudhshah/cse151b-project.git
+git remote set-url origin https://github.com/vishudhshah/cse151b-project.git  # team repo URL
 ```
 
 The first `git push` will prompt for your GitHub username and a personal access token (PAT). Generate one at:
@@ -326,7 +326,7 @@ python model3_finetune_train.py --epochs 3 \
 | `uv: command not found` | Run `export PATH="$HOME/.local/bin:$PATH"` |
 | `source .venv/bin/activate` fails | Venv doesn't exist on this pod — run the full install from Section 5 |
 | `torch.cuda.is_available()` is False | CUDA driver mismatch — re-install torch: `uv pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/cu121` |
-| `git@github.com: Permission denied` | Node has no SSH key — switch to HTTPS: `git remote set-url origin https://github.com/vishudhshah/cse151b-project.git` |
+| `git@github.com: Permission denied` | Node has no SSH key — switch to HTTPS: `git remote set-url origin https://github.com/vishudhshah/cse151b-project.git  # team repo URL` |
 | `No module named 'trl'` | Venv not activated — run `source .venv/bin/activate` |
 | `FileNotFoundError: results/...` | `results/` directory missing — run `mkdir -p results logs checkpoints/model3_qlora` |
 | Progress bar stuck | Normal for first question — see note in Section 7 |
