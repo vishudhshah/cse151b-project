@@ -36,9 +36,10 @@ You land on the login node — this is a CPU-only machine just for launching job
 
 ## 2. Launch a GPU node
 
-Use the course-specific script (instructor-configured image with CUDA 12.8, additional GPU pool):
+Use the course-specific script (instructor-configured image with CUDA 12.8, additional GPU pool). Pods are killed after 6 hours by default — set `K8S_TIMEOUT_SECONDS` first to extend to 12 hours (required for Model 3 training):
 
 ```bash
+export K8S_TIMEOUT_SECONDS=43200   # 12 hours; must be set before launch
 launch-sp26-cuda128.sh -l gpu-class=medium -W CSE151B_SP26_A00 -g 1 -c 8 -m 32
 ```
 
@@ -61,13 +62,6 @@ Add `-s` to either command if you want to skip Jupyter and use only the terminal
 
 ```bash
 launch-sp26-cuda128.sh -l gpu-class=medium -W CSE151B_SP26_A00 -g 1 -c 8 -m 32 -s
-```
-
-**Extending the 6-hour time limit** (important for Model 3 training): pods are killed after 6 hours by default. Set `K8S_TIMEOUT_SECONDS` *before* running the launch command to extend up to 12 hours:
-
-```bash
-export K8S_TIMEOUT_SECONDS=43200   # 12 hours
-launch-sp26-cuda128.sh -l gpu-class=medium -W CSE151B_SP26_A00 -g 1 -c 8 -m 32
 ```
 
 When it starts, you'll see a URL like:
