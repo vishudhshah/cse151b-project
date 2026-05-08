@@ -36,24 +36,31 @@ You land on the login node — this is a CPU-only machine just for launching job
 
 ## 2. Launch a GPU node
 
-Use the new class-specific script (added 2026-05-07 by the instructor — gets you an A30 with less waiting):
+Use the course-specific script (instructor-configured image with CUDA 12.8, additional GPU pool):
 
 ```bash
 launch-sp26-cuda128.sh -l gpu-class=medium -W CSE151B_SP26_A00 -g 1 -c 8 -m 32
 ```
 
-- `-l gpu-class=medium` — targets the medium GPU class (A30) provisioned for this course
-- `-W CSE151B_SP26_A00` — workspace/course identifier; required with this script
+- `-l gpu-class=medium` — Kubernetes label selector; targets the GPU pool provisioned for this course
+- `-W CSE151B_SP26_A00` — course workspace ID; required so your job runs under the course's resource quota
 - `-g 1` — 1 GPU
 - `-c 8` — 8 CPUs
 - `-m 32` — 32 GB RAM
 
 > Instructor benchmark: 5 responses in 65 seconds on an A30 using this image.
 
-If this hangs on "Pending", fall back to the original script:
+If this hangs on "Pending" for more than ~30 seconds, fall back to the general script:
 
 ```bash
-launch.sh -v a30 -g 1 -c 8 -m 32
+# Try GPU types in order of availability: a30, a5000, a100, h100
+launch.sh -v a30 -g 1 -c 8 -m 32 -W CSE151B_SP26_A00
+```
+
+Add `-s` to either command if you want to skip Jupyter and use only the terminal (saves ~10 seconds on startup and avoids the browser step):
+
+```bash
+launch-sp26-cuda128.sh -l gpu-class=medium -W CSE151B_SP26_A00 -g 1 -c 8 -m 32 -s
 ```
 
 When it starts, you'll see a URL like:
