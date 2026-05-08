@@ -87,13 +87,13 @@ nvidia-smi
 If this is a fresh node (no project files yet):
 ```bash
 cd ~
-git clone https://github.com/vishudhshah/cse151b-project.git "CSE 151B/cse151b-project"
-cd "CSE 151B/cse151b-project"
+git clone https://github.com/vishudhshah/cse151b-project.git "private/CSE 151B/cse151b-project"
+cd "private/CSE 151B/cse151b-project"
 ```
 
 If the project folder already exists:
 ```bash
-cd ~/CSE\ 151B/cse151b-project
+cd ~/private/CSE\ 151B/cse151b-project
 git pull
 ```
 
@@ -118,13 +118,13 @@ The first `git push` will prompt for your GitHub username and a personal access 
 
 ```bash
 export PATH="$HOME/.local/bin:$PATH"
-source ~/CSE\ 151B/cse151b-project/.venv/bin/activate
+source ~/private/CSE\ 151B/cse151b-project/.venv/bin/activate
 ```
 
 **Got a new pod?** Run the full setup below (takes ~3 min):
 
 ```bash
-cd ~/CSE\ 151B/cse151b-project
+cd ~/private/CSE\ 151B/cse151b-project
 
 # Install uv (fast package manager)
 curl -LsSf https://astral.sh/uv/install.sh | sh
