@@ -44,9 +44,8 @@ See [`DATAHUB_GUIDE.md`](DATAHUB_GUIDE.md) for the full setup. Quick version:
 
 ```bash
 uv venv .venv --seed && source .venv/bin/activate
-uv pip install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 \
-    --index-url https://download.pytorch.org/whl/cu121
-uv pip install sympy numpy transformers vllm tqdm bitsandbytes \
+uv pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/cu121
+uv pip install sympy numpy transformers vllm tqdm "bitsandbytes>=0.46.1" \
     antlr4-python3-runtime==4.11.1 accelerate peft trl datasets \
     -c constraints.txt
 ```

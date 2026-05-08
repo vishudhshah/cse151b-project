@@ -133,15 +133,13 @@ export PATH="$HOME/.local/bin:$PATH"
 # Create constraints file to pin torch version
 cat > constraints.txt << 'EOF'
 torch==2.5.1
-torchvision==0.20.1
-torchaudio==2.5.1
 EOF
 
-# Create venv and install torch first (cu121 — compatible with CUDA 12.8 driver)
+# Create venv and install torch first (cu121 — compatible with CUDA 13.0 driver)
+# torchvision/torchaudio are not needed for these scripts and have no cp313 wheels
 uv venv .venv --seed
 source .venv/bin/activate
-uv pip install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 \
-    --index-url https://download.pytorch.org/whl/cu121
+uv pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/cu121
 
 # Install everything else (do NOT run `uv pip install -r requirements.txt` directly —
 # torchvision has no PyPI wheel for Python 3.13 and must come from the PyTorch index above)

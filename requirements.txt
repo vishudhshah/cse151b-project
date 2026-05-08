@@ -1,17 +1,11 @@
-# ── PyTorch — pinned to versions tested on DataHub A30 (CUDA 12.2 driver) ────
-# Install torch first before this file, then use this file with -c constraints.txt
-# See setup instructions in PROJECT_GUIDE.md Section 10 or README.md
-#
-# Quick setup (copy-paste):
-#   uv venv .venv --seed && source .venv/bin/activate
-#   uv pip install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 --index-url https://download.pytorch.org/whl/cu121
-#   uv pip install -r requirements.txt -c constraints.txt
+# ── PyTorch — pinned to version tested on DataHub (CUDA 13.0 driver) ─────────
+# torchvision/torchaudio are excluded — not needed and have no cp313 wheels.
+# Do NOT run `uv pip install -r requirements.txt` directly; use the two-step
+# install in DATAHUB_GUIDE.md Section 5 (torch from PyTorch index first).
 --index-url https://download.pytorch.org/whl/cu121
 --extra-index-url https://pypi.org/simple
 
 torch==2.5.1
-torchvision==0.20.1
-torchaudio==2.5.1
 
 # ── HuggingFace stack ──────────────────────────────────────────────────────────
 transformers>=4.45.0
