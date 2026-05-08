@@ -43,7 +43,7 @@ launch-sp26-cuda128.sh -l gpu-class=medium -W CSE151B_SP26_A00 -g 1 -c 8 -m 32
 ```
 
 - `-l gpu-class=medium` — Kubernetes label selector; targets the GPU pool provisioned for this course
-- `-W CSE151B_SP26_A00` — course workspace ID; required so your job runs under the course's resource quota
+- `-W CSE151B_SP26_A00` — mounts the course-specific workspace directory and applies the course resource quota
 - `-g 1` — 1 GPU
 - `-c 8` — 8 CPUs
 - `-m 32` — 32 GB RAM
@@ -61,6 +61,13 @@ Add `-s` to either command if you want to skip Jupyter and use only the terminal
 
 ```bash
 launch-sp26-cuda128.sh -l gpu-class=medium -W CSE151B_SP26_A00 -g 1 -c 8 -m 32 -s
+```
+
+**Extending the 6-hour time limit** (important for Model 3 training): pods are killed after 6 hours by default. Set `K8S_TIMEOUT_SECONDS` *before* running the launch command to extend up to 12 hours:
+
+```bash
+export K8S_TIMEOUT_SECONDS=43200   # 12 hours
+launch-sp26-cuda128.sh -l gpu-class=medium -W CSE151B_SP26_A00 -g 1 -c 8 -m 32
 ```
 
 When it starts, you'll see a URL like:
@@ -217,9 +224,14 @@ nohup python model3_finetune_infer.py --checkpoint checkpoints/model3_qlora --gp
 
 Monitor any job:
 ```bash
-tail -f logs/model1.log          # live output
+tail -f logs/model1.log               # live output
 ps aux | grep python | grep -v grep   # see all running jobs
+kubectl get pod                        # list your pods (from the login node)
+kubectl logs <pod-name>                # get output from a background pod
+kubectl delete pod <pod-name>          # manually terminate a pod when done
 ```
+
+> Check GPU availability before launching: [datahub.ucsd.edu/hub/status](https://datahub.ucsd.edu/hub/status) (requires UCSD login).
 
 ### Time estimates (A30 GPU)
 
@@ -293,7 +305,7 @@ The large weight files (`*.safetensors`, `*.pt`, `*.bin`) are gitignored automat
 
 All inference scripts write results one question at a time. If a session dies mid-run:
 
-1. Launch a new pod: `launch.sh -v a30 -g 1 -c 8 -m 32`
+1. Launch a new pod: `launch-sp26-cuda128.sh -l gpu-class=medium -W CSE151B_SP26_A00 -g 1 -c 8 -m 32`
 2. `cd` into the project, `source .venv/bin/activate`
 3. Re-run the **exact same command** — it detects already-completed questions and skips them
 
@@ -320,3 +332,5 @@ python model3_finetune_train.py --epochs 3 \
 | Progress bar stuck | Normal for first question — see note in Section 7 |
 | HuggingFace download slow | Set `export HF_TOKEN=hf_...` (token from huggingface.co/settings/tokens) |
 | Disk quota error during training | Model weights cache is large — `export HF_HOME=/datasets/$USER/hf_cache` |
+| Pod status: `OOMKilled` | Ran out of RAM — relaunch with `-m 48` or `-m 64` |
+| Pod status: `DeadlineExceeded` | Hit the 6-hour pod limit — set `export K8S_TIMEOUT_SECONDS=43200` before launching (see Section 2) |
