@@ -36,16 +36,25 @@ You land on the login node — this is a CPU-only machine just for launching job
 
 ## 2. Launch a GPU node
 
+Use the new class-specific script (added 2026-05-07 by the instructor — gets you an A30 with less waiting):
+
 ```bash
-launch.sh -v a30 -g 1 -c 8 -m 32
+launch-sp26-cuda128.sh -l gpu-class=medium -W CSE151B_SP26_A00 -g 1 -c 8 -m 32
 ```
 
-- `-v a30` — GPU type. A30 is instructor-tested. Try `a100` or `h100` if available (faster). Full list: `1080|1080ti|2080ti|a30|a5000|a100|h100|rtxtitan|l40s`
+- `-l gpu-class=medium` — targets the medium GPU class (A30) provisioned for this course
+- `-W CSE151B_SP26_A00` — workspace/course identifier; required with this script
 - `-g 1` — 1 GPU
 - `-c 8` — 8 CPUs
 - `-m 32` — 32 GB RAM
 
-If it hangs on "Pending" for more than ~30 seconds, the GPU type is fully occupied — Ctrl+C and try the next one down the list.
+> Instructor benchmark: 5 responses in 65 seconds on an A30 using this image.
+
+If this hangs on "Pending", fall back to the original script:
+
+```bash
+launch.sh -v a30 -g 1 -c 8 -m 32
+```
 
 When it starts, you'll see a URL like:
 ```
@@ -61,7 +70,7 @@ Open that URL in your browser (**must be on VPN**). Then open a terminal: **File
 Verify you have a GPU:
 ```bash
 nvidia-smi
-# Should show: A30 (24 GB), CUDA 12.2
+# Should show: A30 (24 GB), CUDA 12.8
 ```
 
 ---
@@ -114,7 +123,7 @@ torchvision==0.20.1
 torchaudio==2.5.1
 EOF
 
-# Create venv and install torch first (cu121 — tested on A30 / CUDA 12.2)
+# Create venv and install torch first (cu121 — compatible with CUDA 12.8 driver)
 uv venv .venv --seed
 source .venv/bin/activate
 uv pip install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 \
@@ -294,7 +303,7 @@ python model3_finetune_train.py --epochs 3 \
 
 | Error | Fix |
 |-------|-----|
-| `launch.sh` hangs on Pending | GPU type is full — Ctrl+C and try `a100`, `a30`, `a5000` in order |
+| `launch-sp26-cuda128.sh` hangs on Pending | Use fallback: `launch.sh -v a30 -g 1 -c 8 -m 32` |
 | `uv: command not found` | Run `export PATH="$HOME/.local/bin:$PATH"` |
 | `source .venv/bin/activate` fails | Venv doesn't exist on this pod — run the full install from Section 5 |
 | `torch.cuda.is_available()` is False | CUDA driver mismatch — re-install torch: `uv pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/cu121` |
