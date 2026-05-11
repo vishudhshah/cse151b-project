@@ -47,7 +47,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 
 MODEL_ID   = "Qwen/Qwen3-4B-Thinking-2507"
 DATA_PATH  = "data/public.jsonl"
-MAX_TOKENS = 1024
+MAX_TOKENS = 4096
 
 # Sampling kept identical across all variants to isolate prompt effect.
 SAMPLING_PARAMS = dict(

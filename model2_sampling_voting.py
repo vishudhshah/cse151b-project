@@ -59,7 +59,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 
 MODEL_ID   = "Qwen/Qwen3-4B-Thinking-2507"
 DATA_PATH  = "data/public.jsonl"
-MAX_TOKENS = 1024
+MAX_TOKENS = 4096
 
 VOTING_TEMPERATURE = 0.7   # temperature used for all majority-voting experiments
 TEMP_SWEEP_VALUES  = [0.0, 0.3, 0.5, 0.7, 0.9]
