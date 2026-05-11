@@ -39,7 +39,7 @@ You land on the login node — this is a CPU-only machine just for launching job
 Use the course-specific script (instructor-configured image with CUDA 12.8, additional GPU pool). Pods are killed after 6 hours by default — set `K8S_TIMEOUT_SECONDS` first to extend to 12 hours (required for Model 3 training):
 
 ```bash
-export K8S_TIMEOUT_SECONDS=43200   # 12 hours; must be set before launch
+export K8S_TIMEOUT_SECONDS=43200
 launch-sp26-cuda128.sh -l gpu-class=medium -W CSE151B_SP26_A00 -g 1 -c 16 -m 64
 ```
 
@@ -143,7 +143,7 @@ uv pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/cu121
 
 # Install everything else (do NOT run `uv pip install -r requirements.txt` directly —
 # torchvision has no PyPI wheel for Python 3.13 and must come from the PyTorch index above)
-uv pip install sympy numpy transformers vllm tqdm "bitsandbytes>=0.46.1" \
+uv pip install sympy numpy transformers tqdm "bitsandbytes>=0.46.1" \
     antlr4-python3-runtime==4.11.1 accelerate peft trl datasets \
     -c constraints.txt
 

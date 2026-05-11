@@ -10,7 +10,7 @@ torch==2.5.1
 # ── HuggingFace stack ──────────────────────────────────────────────────────────
 transformers>=4.45.0
 accelerate>=0.27.0
-bitsandbytes>=0.46.1          # 4-bit (NF4) quantisation; >=0.46.1 required on Python 3.13
+bitsandbytes>=0.46.1          # >=0.46.1 required on Python 3.13
 
 # ── Scoring / math ─────────────────────────────────────────────────────────────
 sympy>=1.12
