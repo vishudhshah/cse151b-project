@@ -129,8 +129,8 @@ cd ~/private/CSE\ 151B/cse151b-project
 uv venv .venv --seed --system-site-packages
 source .venv/bin/activate
 
-# Install from requirements.txt — skips anything already satisfied by the image
-uv pip install -r requirements.txt
+# Install from requirements.txt — use pip (not uv) so system-site-packages deps are skipped
+pip install -r requirements.txt
 
 # Set HuggingFace token to avoid rate limiting (get from huggingface.co/settings/tokens)
 export HF_TOKEN=hf_your_token_here
