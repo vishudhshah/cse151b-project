@@ -195,7 +195,8 @@ nohup python model2_sampling_voting.py --experiment temp_sweep --gpu 0 > logs/mo
 nohup python model2_sampling_voting.py --experiment voting_n5 --gpu 0 > logs/model2_vote5.log 2>&1 &
 
 # ── Step 5: Model 3 inference (after training finishes) ───────────────────────
-ls checkpoints/model3_qlora/adapter_model.safetensors  # confirm training done
+# confirm training done
+ls checkpoints/model3_qlora/adapter_model.safetensors
 nohup python model3_finetune_infer.py --checkpoint checkpoints/model3_qlora --gpu 0 > logs/model3_infer.log 2>&1 &
 ```
 
