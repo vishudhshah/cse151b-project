@@ -177,26 +177,24 @@ python model3_finetune_infer.py --checkpoint checkpoints/model3_qlora --limit 5 
 
 ### Full experiment run
 
-Start Model 3 training first (takes ~6 hours) so it runs in the background while you do everything else.
+Start Model 3 training first (~10 hours) and let it run alone — running inference jobs in parallel causes GPU contention and blows out ETAs.
 
 ```bash
-# ── Step 1: Model 3 training (start first, runs overnight) ────────────────────
+# ── Step 1: Model 3 training (start first, let it finish before steps 2–4) ───
 nohup python model3_finetune_train.py --epochs 3 --gpu 0 > logs/model3_train.log 2>&1 &
 echo "Training PID: $!"
 
-# ── Step 2: Model 1 — all 4 prompt variants (~50 min) ─────────────────────────
-nohup python model1_prompt_engineering.py --variant all --gpu 0 > logs/model1.log 2>&1 &
+# ── After training finishes: confirm checkpoint exists ────────────────────────
+ls checkpoints/model3_qlora/adapter_model.safetensors
+
+# ── Step 2: Model 1 — baseline variant only ───────────────────────────────────
+nohup python model1_prompt_engineering.py --variant v0_baseline --gpu 0 > logs/model1.log 2>&1 &
 echo "Model 1 PID: $!"
 
-# ── Step 3: Model 2 — temperature sweep (~60 min) ─────────────────────────────
-nohup python model2_sampling_voting.py --experiment temp_sweep --gpu 0 > logs/model2_temp.log 2>&1 &
+# ── Step 3: Model 2 — majority voting N=3 (fastest experiment) ────────────────
+nohup python model2_sampling_voting.py --experiment voting_n3 --gpu 0 > logs/model2_vote3.log 2>&1 &
 
-# ── Step 4: Model 2 — majority voting (~60 min per N) ─────────────────────────
-nohup python model2_sampling_voting.py --experiment voting_n5 --gpu 0 > logs/model2_vote5.log 2>&1 &
-
-# ── Step 5: Model 3 inference (after training finishes) ───────────────────────
-# confirm training done
-ls checkpoints/model3_qlora/adapter_model.safetensors
+# ── Step 4: Model 3 inference ─────────────────────────────────────────────────
 nohup python model3_finetune_infer.py --checkpoint checkpoints/model3_qlora --gpu 0 > logs/model3_infer.log 2>&1 &
 ```
 
@@ -215,10 +213,9 @@ kubectl delete pod <pod-name>        # manually terminate a pod when done
 
 | Step | Est. time |
 |------|-----------|
-| Model 1 — all 4 variants | ~50 min |
-| Model 2 — temp sweep | ~60 min |
-| Model 2 — voting N=5 | ~60 min |
-| Model 3 — training (3 epochs) | ~4–6 hours |
+| Model 3 — training (3 epochs) | ~10 hours |
+| Model 1 — baseline variant | ~30 min |
+| Model 2 — voting N=3 | ~20 min |
 | Model 3 — inference | ~12 min |
 
 ---
@@ -239,19 +236,9 @@ def load(path):
     return p(m), p(f), p(rs), len(rs)
 
 rows = [
-    ("Baseline (v0)",             "results/model1_v0_baseline_results.jsonl"),
-    ("Prompt: Enhanced CoT (v1)", "results/model1_v1_enhanced_cot_results.jsonl"),
-    ("Prompt: Few-shot (v2)",     "results/model1_v2_fewshot_results.jsonl"),
-    ("Prompt: Verification (v3)", "results/model1_v3_verification_results.jsonl"),
-    ("Temp: Greedy (T=0.0)",      "results/model2_temp0p0_results.jsonl"),
-    ("Temp: T=0.3",               "results/model2_temp0p3_results.jsonl"),
-    ("Temp: T=0.5",               "results/model2_temp0p5_results.jsonl"),
-    ("Temp: T=0.7",               "results/model2_temp0p7_results.jsonl"),
-    ("Temp: T=0.9",               "results/model2_temp0p9_results.jsonl"),
-    ("Voting N=3",                "results/model2_voting_n3_results.jsonl"),
-    ("Voting N=5",                "results/model2_voting_n5_results.jsonl"),
-    ("Voting N=7",                "results/model2_voting_n7_results.jsonl"),
-    ("Fine-tuned QLoRA",          "results/model3_finetune_results.jsonl"),
+    ("Baseline (v0)",    "results/model1_v0_baseline_results.jsonl"),
+    ("Voting N=3",       "results/model2_voting_n3_results.jsonl"),
+    ("Fine-tuned QLoRA", "results/model3_finetune_results.jsonl"),
 ]
 
 print(f"\n{'Model':<30} {'MCQ':>8} {'Free':>8} {'Overall':>10}  N")
