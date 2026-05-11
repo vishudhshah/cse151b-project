@@ -202,11 +202,11 @@ nohup python model3_finetune_infer.py --checkpoint checkpoints/model3_qlora --gp
 
 Monitor any job:
 ```bash
-tail -f logs/model1.log               # live output
-ps aux | grep python | grep -v grep   # see all running jobs
-kubectl get pod                        # list your pods (from the login node)
-kubectl logs <pod-name>                # get output from a background pod
-kubectl delete pod <pod-name>          # manually terminate a pod when done
+tail -f logs/model1.log              # live output
+ps aux | grep python | grep -v grep  # see all running jobs
+kubectl get pod                      # list your pods (from the login node)
+kubectl logs <pod-name>              # get output from a background pod
+kubectl delete pod <pod-name>        # manually terminate a pod when done
 ```
 
 > Check GPU availability before launching: [datahub.ucsd.edu/hub/status](https://datahub.ucsd.edu/hub/status) (requires UCSD login).
