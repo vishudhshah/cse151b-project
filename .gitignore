@@ -11,6 +11,7 @@ logs/**
 # Large model / training files (belt-and-suspenders)
 *.safetensors
 *.pt
+*.pth
 *.bin
 *.onnx
 
