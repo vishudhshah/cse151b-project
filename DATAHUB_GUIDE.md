@@ -117,42 +117,27 @@ The first `git push` will prompt for your GitHub username and a personal access 
 **Returning to the same pod?** The venv persists — skip this section entirely and just run:
 
 ```bash
-export PATH="$HOME/.local/bin:$PATH"
 source ~/private/CSE\ 151B/cse151b-project/.venv/bin/activate
 ```
 
-**Got a new pod?** Run the full setup below (takes ~3 min):
+**Got a new pod?** Run the setup below (~1 min — torch and most packages are pre-installed in the image):
 
 ```bash
 cd ~/private/CSE\ 151B/cse151b-project
 
-# Install uv (fast package manager)
-curl -LsSf https://astral.sh/uv/install.sh | sh
-export PATH="$HOME/.local/bin:$PATH"
-
-# Create constraints file to pin torch version
-cat > constraints.txt << 'EOF'
-torch==2.5.1
-EOF
-
-# Create venv and install torch first (cu121 — compatible with CUDA 13.0 driver)
-# torchvision/torchaudio are not needed for these scripts and have no cp313 wheels
-uv venv .venv --seed
+# Create venv that inherits pre-installed packages (torch 2.11+cu128, transformers, accelerate, sympy)
+uv venv .venv --seed --system-site-packages
 source .venv/bin/activate
-uv pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/cu121
 
-# Install everything else (do NOT run `uv pip install -r requirements.txt` directly —
-# torchvision has no PyPI wheel for Python 3.13 and must come from the PyTorch index above)
-uv pip install sympy numpy transformers tqdm "bitsandbytes>=0.46.1" \
-    antlr4-python3-runtime==4.11.1 accelerate peft trl datasets \
-    -c constraints.txt
+# Install only what's missing from the base image
+uv pip install "bitsandbytes>=0.46.1" antlr4-python3-runtime==4.11.1 peft trl datasets
 
 # Set HuggingFace token to avoid rate limiting (get from huggingface.co/settings/tokens)
 export HF_TOKEN=hf_your_token_here
 
 # Verify
 python -c "import torch; print(torch.__version__, torch.cuda.is_available())"
-# Expected: 2.5.1+cu121  True
+# Expected: 2.11.0+cu128  True
 ```
 
 ---
@@ -320,9 +305,8 @@ python model3_finetune_train.py --epochs 3 \
 | Error | Fix |
 |-------|-----|
 | `launch-sp26-cuda128.sh` hangs on Pending | Use fallback: `launch.sh -v a30 -g 1 -c 16 -m 64` |
-| `uv: command not found` | Run `export PATH="$HOME/.local/bin:$PATH"` |
-| `source .venv/bin/activate` fails | Venv doesn't exist on this pod — run the full install from Section 5 |
-| `torch.cuda.is_available()` is False | CUDA driver mismatch — re-install torch: `uv pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/cu121` |
+| `source .venv/bin/activate` fails | Venv doesn't exist on this pod — run the install from Section 5 |
+| `torch.cuda.is_available()` is False | Check `nvidia-smi` first; if driver is present, recreate venv: `rm -rf .venv` then re-run Section 5 |
 | `git@github.com: Permission denied` | Node has no SSH key — switch to HTTPS: `git remote set-url origin https://github.com/vishudhshah/cse151b-project.git` |
 | `No module named 'trl'` | Venv not activated — run `source .venv/bin/activate` |
 | `FileNotFoundError: results/...` | `results/` directory missing — run `mkdir -p results logs checkpoints/model3_qlora` |
