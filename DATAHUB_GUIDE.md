@@ -181,27 +181,22 @@ Start Model 3 training first (takes ~6 hours) so it runs in the background while
 
 ```bash
 # ── Step 1: Model 3 training (start first, runs overnight) ────────────────────
-nohup python model3_finetune_train.py --epochs 3 --gpu 0 \
-    > logs/model3_train.log 2>&1 &
+nohup python model3_finetune_train.py --epochs 3 --gpu 0 > logs/model3_train.log 2>&1 &
 echo "Training PID: $!"
 
 # ── Step 2: Model 1 — all 4 prompt variants (~50 min) ─────────────────────────
-nohup python model1_prompt_engineering.py --variant all --gpu 0 \
-    > logs/model1.log 2>&1 &
+nohup python model1_prompt_engineering.py --variant all --gpu 0 > logs/model1.log 2>&1 &
 echo "Model 1 PID: $!"
 
 # ── Step 3: Model 2 — temperature sweep (~60 min) ─────────────────────────────
-nohup python model2_sampling_voting.py --experiment temp_sweep --gpu 0 \
-    > logs/model2_temp.log 2>&1 &
+nohup python model2_sampling_voting.py --experiment temp_sweep --gpu 0 > logs/model2_temp.log 2>&1 &
 
 # ── Step 4: Model 2 — majority voting (~60 min per N) ─────────────────────────
-nohup python model2_sampling_voting.py --experiment voting_n5 --gpu 0 \
-    > logs/model2_vote5.log 2>&1 &
+nohup python model2_sampling_voting.py --experiment voting_n5 --gpu 0 > logs/model2_vote5.log 2>&1 &
 
 # ── Step 5: Model 3 inference (after training finishes) ───────────────────────
 ls checkpoints/model3_qlora/adapter_model.safetensors  # confirm training done
-nohup python model3_finetune_infer.py --checkpoint checkpoints/model3_qlora --gpu 0 \
-    > logs/model3_infer.log 2>&1 &
+nohup python model3_finetune_infer.py --checkpoint checkpoints/model3_qlora --gpu 0 > logs/model3_infer.log 2>&1 &
 ```
 
 Monitor any job:
@@ -294,8 +289,7 @@ All inference scripts write results one question at a time. If a session dies mi
 For training, completed epochs are checkpointed. If killed mid-epoch, re-run from the last saved checkpoint:
 ```bash
 # Resume from the last epoch checkpoint
-python model3_finetune_train.py --epochs 3 \
-    --output checkpoints/model3_qlora  # trainer resumes automatically
+python model3_finetune_train.py --epochs 3 --output checkpoints/model3_qlora  # trainer resumes automatically
 ```
 
 ---
