@@ -125,12 +125,12 @@ source ~/private/CSE\ 151B/cse151b-project/.venv/bin/activate
 ```bash
 cd ~/private/CSE\ 151B/cse151b-project
 
-# Create venv that inherits pre-installed packages (torch 2.11+cu128, transformers, accelerate, sympy)
+# Create venv that inherits pre-installed packages (torch 2.11+cu128, transformers, accelerate, sympy, etc.)
 uv venv .venv --seed --system-site-packages
 source .venv/bin/activate
 
-# Install only what's missing from the base image
-uv pip install "bitsandbytes>=0.46.1" antlr4-python3-runtime==4.11.1 peft trl datasets
+# Install from requirements.txt — skips anything already satisfied by the image
+uv pip install -r requirements.txt
 
 # Set HuggingFace token to avoid rate limiting (get from huggingface.co/settings/tokens)
 export HF_TOKEN=hf_your_token_here

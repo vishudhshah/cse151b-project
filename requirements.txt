@@ -1,26 +1,25 @@
-# ── PyTorch — pinned to version tested on DataHub (CUDA 13.0 driver) ─────────
-# torchvision/torchaudio are excluded — not needed and have no cp313 wheels.
-# Do NOT run `uv pip install -r requirements.txt` directly; use the two-step
-# install in DATAHUB_GUIDE.md Section 5 (torch from PyTorch index first).
---index-url https://download.pytorch.org/whl/cu121
---extra-index-url https://pypi.org/simple
+# All packages below are satisfied by the course image except bitsandbytes, peft, and trl.
+# uv pip install -r requirements.txt skips anything already installed.
 
-torch==2.5.1
+# ── PyTorch stack ──────────────────────────────────────────────────────────────
+torch>=2.11.0                   # pre-installed as 2.11.0+cu128
+torchaudio>=2.11.0              # pre-installed
+torchvision>=0.26.0             # pre-installed
 
 # ── HuggingFace stack ──────────────────────────────────────────────────────────
-transformers>=4.45.0
-accelerate>=0.27.0
-bitsandbytes>=0.46.1          # >=0.46.1 required on Python 3.13
+transformers>=4.45.0            # pre-installed as 5.8.0
+accelerate>=0.27.0              # pre-installed as 1.13.0
+datasets>=2.18.0                # pre-installed as 4.8.5
+bitsandbytes>=0.46.1            # NOT pre-installed — installed by setup
 
 # ── Scoring / math ─────────────────────────────────────────────────────────────
-sympy>=1.12
-antlr4-python3-runtime==4.11.1  # exact version required by sympy.parsing.latex
-numpy>=1.24
+sympy>=1.12                     # pre-installed as 1.14.0
+antlr4-python3-runtime==4.11.1  # NOT pre-installed — exact version required by sympy.parsing.latex
+numpy>=1.24                     # pre-installed as 2.4.3
 
 # ── Utilities ──────────────────────────────────────────────────────────────────
-tqdm>=4.66
+tqdm>=4.66                      # pre-installed as 4.67.3
 
 # ── Fine-tuning — Model 3 only ─────────────────────────────────────────────────
-peft>=0.10.0
-trl>=0.8.6
-datasets>=2.18.0
+peft>=0.10.0                    # NOT pre-installed — installed by setup
+trl>=0.8.6                      # NOT pre-installed — installed by setup
