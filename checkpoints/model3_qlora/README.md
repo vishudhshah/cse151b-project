@@ -39,9 +39,9 @@ This model was trained with SFT.
 ### Framework versions
 
 - PEFT 0.19.1
-- TRL: 1.3.0
-- Transformers: 5.7.0
-- Pytorch: 2.5.1+cu121
+- TRL: 1.4.0
+- Transformers: 5.8.0
+- Pytorch: 2.11.0+cu128
 - Datasets: 4.8.5
 - Tokenizers: 0.22.2
 
