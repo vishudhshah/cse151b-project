@@ -181,19 +181,19 @@ Start Model 3 training first (~10 hours) and let it run alone — running infere
 
 ```bash
 # ── Step 1: Model 3 training (start first, let it finish before steps 2–4) ───
-nohup python model3_finetune_train.py --epochs 3 --gpu 0 > logs/model3_train.log 2>&1 &
+nohup python model3_finetune_train.py --epochs 3 > logs/model3_train.log 2>&1 &
 echo "Training PID: $!"
 
 # ── After training finishes: run inference immediately while checkpoint is fresh
 ls checkpoints/model3_qlora/adapter_model.safetensors  # confirm training done
-nohup python model3_finetune_infer.py --checkpoint checkpoints/model3_qlora --gpu 0 > logs/model3_infer.log 2>&1 &
+nohup python model3_finetune_infer.py --checkpoint checkpoints/model3_qlora > logs/model3_infer.log 2>&1 &
 
 # ── Step 2: Model 1 — baseline variant only ───────────────────────────────────
-nohup python model1_prompt_engineering.py --variant v0_baseline --gpu 0 > logs/model1.log 2>&1 &
+nohup python model1_prompt_engineering.py --variant v0_baseline > logs/model1.log 2>&1 &
 echo "Model 1 PID: $!"
 
 # ── Step 3: Model 2 — majority voting N=3 (fastest experiment) ────────────────
-nohup python model2_sampling_voting.py --experiment voting_n3 --gpu 0 > logs/model2_vote3.log 2>&1 &
+nohup python model2_sampling_voting.py --experiment voting_n3 > logs/model2_vote3.log 2>&1 &
 ```
 
 Monitor any job:
