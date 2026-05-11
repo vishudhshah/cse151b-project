@@ -173,7 +173,7 @@ python model3_finetune_train.py --max_steps 5 --subset 50
 python model3_finetune_infer.py --checkpoint checkpoints/model3_qlora --limit 5 --max_tokens 2048
 ```
 
-> **Progress bar looks stuck on first question?** Normal — the thinking model generates up to 16,384 tokens before answering. The bar only ticks after each complete response. `--max_tokens 2048` makes smoke tests faster; use the default for real runs.
+> **Progress bar looks stuck on first question?** Normal — the thinking model generates up to 4,096 tokens before answering. The bar only ticks after each complete response. `--max_tokens 2048` makes smoke tests faster; use the default for real runs.
 
 ### Full experiment run
 
