@@ -53,7 +53,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 MODEL_ID           = "Qwen/Qwen3-4B-Thinking-2507"
 DEFAULT_CHECKPOINT = "checkpoints/model3_qlora"
 DATA_PATH          = "data/public.jsonl"
-MAX_TOKENS         = 16384
+MAX_TOKENS         = 1024
 
 SAMPLING_PARAMS = dict(
     max_new_tokens=MAX_TOKENS,
