@@ -95,6 +95,7 @@ def load_model_with_adapter(checkpoint_dir: str):
     print(f"Loading {MODEL_ID} (4-bit BnB quantization)...")
     tokenizer = AutoTokenizer.from_pretrained(MODEL_ID, trust_remote_code=True)
     tokenizer.pad_token = tokenizer.eos_token
+    tokenizer.padding_side = "left"
 
     bnb_config = BitsAndBytesConfig(
         load_in_4bit=True,
@@ -158,23 +159,42 @@ def score_response(item: dict, response: str, judger) -> bool:
 
 # ── Inference ─────────────────────────────────────────────────────────────────
 
-def generate_response(model, tokenizer, item: dict) -> str:
-    sys_p, usr_p = build_prompt(item["question"], item.get("options"))
-    prompt_text  = tokenizer.apply_chat_template(
-        [{"role": "system", "content": sys_p},
-         {"role": "user",   "content": usr_p}],
-        tokenize=False,
-        add_generation_prompt=True,
-    )
+def generate_batch(model, tokenizer, items: list[dict]) -> list[str]:
+    prompt_texts = []
+    for item in items:
+        sys_p, usr_p = build_prompt(item["question"], item.get("options"))
+        prompt_texts.append(
+            tokenizer.apply_chat_template(
+                [{"role": "system", "content": sys_p},
+                 {"role": "user",   "content": usr_p}],
+                tokenize=False,
+                add_generation_prompt=True,
+            )
+        )
+
     inputs = tokenizer(
-        prompt_text, return_tensors="pt", truncation=True, max_length=8192
+        prompt_texts,
+        return_tensors="pt",
+        padding=True,
+        truncation=True,
+        max_length=8192,
     ).to(model.device)
 
     with torch.no_grad():
-        output_ids = model.generate(**inputs, **SAMPLING_PARAMS)
+        output_ids = model.generate(
+            **inputs,
+            **SAMPLING_PARAMS,
+            pad_token_id=tokenizer.eos_token_id,
+        )
 
-    new_tokens = output_ids[0][inputs["input_ids"].shape[1]:]
-    return tokenizer.decode(new_tokens, skip_special_tokens=True).strip()
+    # With left-padding, all inputs share the same padded length; generated
+    # tokens for item i start at this offset in output_ids[i].
+    input_len = inputs["input_ids"].shape[1]
+    responses = []
+    for i in range(len(items)):
+        new_tokens = output_ids[i][input_len:]
+        responses.append(tokenizer.decode(new_tokens, skip_special_tokens=True).strip())
+    return responses
 
 # ── CSV Submission Writer ─────────────────────────────────────────────────────
 
@@ -204,6 +224,9 @@ def main():
     parser.add_argument("--gpu",        default="0")
     parser.add_argument("--no_eval",    action="store_true",
                         help="Skip scoring (use for private test set)")
+    parser.add_argument("--batch_size", type=int, default=2,
+                        help="Number of prompts per GPU call (default: 2, tuned for A30 24 GB). "
+                             "Reduce to 1 if you get CUDA OOM errors; increase to 4 on A100 40 GB.")
     parser.add_argument("--output",     default="results",
                         help="Output directory (default: results/)")
     args = parser.parse_args()
@@ -221,6 +244,7 @@ def main():
     print(f"Questions : {len(data)}  ({n_mcq} MCQ, {len(data)-n_mcq} free-form)")
     print(f"Mode      : {'inference-only (no ground truth)' if is_private else 'eval'}")
     print(f"Checkpoint: {args.checkpoint}")
+    print(f"Batch size : {args.batch_size}")
 
     model, tokenizer = load_model_with_adapter(args.checkpoint)
 
@@ -249,20 +273,24 @@ def main():
     if done_ids:
         print(f"Resuming: {len(done_ids)} done, {len(remaining)} remaining")
 
-    # Write each result immediately so progress survives a killed session
+    # Write results after each batch; progress bar tracks individual questions
     with open(jsonl_path, "a") as f_out:
-        for item in tqdm(remaining, desc="Generating"):
-            response = generate_response(model, tokenizer, item)
-            record   = {
-                "id":       item["id"],
-                "is_mcq":   bool(item.get("options")),
-                "response": response,
-            }
-            if not is_private and "answer" in item:
-                record["gold"]    = item["answer"]
-                record["correct"] = score_response(item, response, judger)
-            f_out.write(json.dumps(record) + "\n")
-            f_out.flush()
+        with tqdm(total=len(remaining), desc="Generating") as pbar:
+            for batch_start in range(0, len(remaining), args.batch_size):
+                batch     = remaining[batch_start : batch_start + args.batch_size]
+                responses = generate_batch(model, tokenizer, batch)
+                for item, response in zip(batch, responses):
+                    record = {
+                        "id":       item["id"],
+                        "is_mcq":   bool(item.get("options")),
+                        "response": response,
+                    }
+                    if not is_private and "answer" in item:
+                        record["gold"]    = item["answer"]
+                        record["correct"] = score_response(item, response, judger)
+                    f_out.write(json.dumps(record) + "\n")
+                pbar.update(len(batch))
+                f_out.flush()
 
     results = [json.loads(l) for l in open(jsonl_path)]
     print(f"Results JSONL: {jsonl_path}  ({len(results)} records)")

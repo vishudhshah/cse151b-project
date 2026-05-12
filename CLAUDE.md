@@ -74,13 +74,13 @@ All three models load Qwen3-4B-Thinking-2507 in 4-bit (NF4) quantization via Bit
 
 - **`model3_finetune_train.py`** — QLoRA fine-tuning on `lighteval/MATH` (7,500 problems). Frozen 4-bit base + trainable LoRA adapters (rank=16, alpha=32) on attention + FFN layers. Uses `paged_adamw_8bit`, lr=2e-4, cosine schedule, effective batch=8, 3 epochs. Saves to `checkpoints/model3_qlora/`.
 
-- **`model3_finetune_infer.py`** — Loads base model + LoRA adapter from checkpoint, runs inference on public or private set. Writes `.jsonl` results and `results/model3_submission.csv` for Kaggle.
+- **`model3_finetune_infer.py`** — Loads base model + LoRA adapter from checkpoint, runs inference on public or private set. Processes questions in batches (`--batch_size 2` default, tuned for A30 24 GB; use `--batch_size 1` if OOM). Writes `.jsonl` results and `results/model3_submission.csv` for Kaggle.
 
 ### Result file format
 All `.jsonl` files in `results/` have one JSON object per line with fields: `id`, `is_mcq`, `gold`, `response` (or `responses` for voting), `correct`. Voting records also have `voted`, `agreement`, `n_samples`.
 
 ### Resume behavior
-All inference scripts write results one question at a time and skip already-completed IDs on re-run. Training resumes from the last epoch checkpoint automatically.
+All inference scripts write results to disk and skip already-completed IDs on re-run (model3 flushes after each batch). Training resumes from the last epoch checkpoint automatically.
 
 ## Data
 
