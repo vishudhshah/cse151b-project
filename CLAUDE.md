@@ -68,9 +68,9 @@ python model3_finetune_infer.py --checkpoint checkpoints/model3_qlora --data dat
 ### Model scripts
 All three models load Qwen3-4B-Thinking-2507 in 4-bit (NF4) quantization via BitsAndBytes. The model outputs `<think>...</think>` reasoning before the final answer; the judger strips everything before `</think>` and looks for `\boxed{}`.
 
-- **`model1_prompt_engineering.py`** — 4 prompt variants (v0 baseline, v1 enhanced CoT, v2 few-shot, v3 self-verification). Sampling is fixed across all variants (`T=0.6, top_p=0.95, top_k=20`). Writes `results/model1_<variant>_results.jsonl`.
+- **`model1_prompt_engineering.py`** — 4 prompt variants (v0 baseline, v1 enhanced CoT, v2 few-shot, v3 self-verification). Sampling is fixed across all variants (`T=0.6, top_p=0.95, top_k=20`). Processes questions in batches (`--batch_size 2` default). Writes `results/model1_<variant>_results.jsonl`.
 
-- **`model2_sampling_voting.py`** — Temperature sweep (T=0.0–0.9) and majority voting (N=3,5,7 at T=0.7). Voting extracts `\boxed{}` from each sample, normalizes via `judger.norm_ans_str()`, and takes the modal answer. Writes `results/model2_<experiment>_results.jsonl`.
+- **`model2_sampling_voting.py`** — Temperature sweep (T=0.0–0.9) and majority voting (N=3,5,7 at T=0.7). Voting extracts `\boxed{}` from each sample, normalizes via `judger.norm_ans_str()`, and takes the modal answer. Processes questions in batches (`--batch_size 2` default); voting runs N generation rounds per batch. Writes `results/model2_<experiment>_results.jsonl`.
 
 - **`model3_finetune_train.py`** — QLoRA fine-tuning on `lighteval/MATH` (7,500 problems). Frozen 4-bit base + trainable LoRA adapters (rank=16, alpha=32) on attention + FFN layers. Uses `paged_adamw_8bit`, lr=2e-4, cosine schedule, effective batch=8, 3 epochs. Saves to `checkpoints/model3_qlora/`.
 

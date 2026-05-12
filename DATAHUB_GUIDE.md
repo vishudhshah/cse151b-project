@@ -196,7 +196,7 @@ echo "Model 1 PID: $!"
 nohup python model2_sampling_voting.py --experiment voting_n3 > logs/model2_vote3.log 2>&1 &
 ```
 
-> **If Model 3 inference crashes with `torch.cuda.OutOfMemoryError`:** the GPU ran out of VRAM from holding two questions in memory simultaneously. Re-run with `--batch_size 1` — it processes one question at a time and resumes from where it left off.
+> **If any inference script crashes with `torch.cuda.OutOfMemoryError`:** the GPU ran out of VRAM from holding two questions in memory simultaneously. Re-run with `--batch_size 1` — it processes one question at a time and resumes from where it left off. This applies to all three scripts (model1, model2, model3).
 
 Monitor any job:
 ```bash

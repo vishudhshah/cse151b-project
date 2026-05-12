@@ -234,25 +234,42 @@ def score_response(item: dict, response: str, judger) -> bool:
 
 # ── Inference ─────────────────────────────────────────────────────────────────
 
-def generate_one(llm, tokenizer, item: dict, cfg: dict) -> str:
-    sys_p, usr_p = build_prompt(item["question"], item.get("options"), cfg)
-    prompt_text  = tokenizer.apply_chat_template(
-        [{"role": "system", "content": sys_p},
-         {"role": "user",   "content": usr_p}],
-        tokenize=False,
-        add_generation_prompt=True,
-    )
+def generate_batch(llm, tokenizer, items: list[dict], cfg: dict) -> list[str]:
+    prompt_texts = []
+    for item in items:
+        sys_p, usr_p = build_prompt(item["question"], item.get("options"), cfg)
+        prompt_texts.append(
+            tokenizer.apply_chat_template(
+                [{"role": "system", "content": sys_p},
+                 {"role": "user",   "content": usr_p}],
+                tokenize=False,
+                add_generation_prompt=True,
+            )
+        )
     inputs = tokenizer(
-        prompt_text, return_tensors="pt", truncation=True, max_length=8192
+        prompt_texts,
+        return_tensors="pt",
+        padding=True,
+        truncation=True,
+        max_length=8192,
     ).to(llm.device)
     with torch.no_grad():
-        output_ids = llm.generate(**inputs, **SAMPLING_PARAMS)
-    new_tokens = output_ids[0][inputs["input_ids"].shape[1]:]
-    return tokenizer.decode(new_tokens, skip_special_tokens=True).strip()
+        output_ids = llm.generate(
+            **inputs,
+            **SAMPLING_PARAMS,
+            pad_token_id=tokenizer.eos_token_id,
+        )
+    input_len = inputs["input_ids"].shape[1]
+    responses = []
+    for i in range(len(items)):
+        new_tokens = output_ids[i][input_len:]
+        responses.append(tokenizer.decode(new_tokens, skip_special_tokens=True).strip())
+    return responses
 
 # ── Per-Variant Runner ─────────────────────────────────────────────────────────
 
-def run_variant(variant: str, llm, tokenizer, data: list, judger, out_dir: Path) -> dict:
+def run_variant(variant: str, llm, tokenizer, data: list, judger, out_dir: Path,
+                batch_size: int) -> dict:
     cfg      = VARIANTS[variant]
     out_path = out_dir / f"model1_{variant}_results.jsonl"
 
@@ -273,20 +290,24 @@ def run_variant(variant: str, llm, tokenizer, data: list, judger, out_dir: Path)
         print(f"  Resuming: {len(done_ids)} already done, {len(remaining)} remaining")
     print(f"{'─'*60}")
 
-    # Append new results one at a time so progress survives a killed session
+    # Append new results after each batch; progress bar tracks individual questions
     with open(out_path, "a") as f_out:
-        for item in tqdm(remaining, desc=f"  {variant}"):
-            response = generate_one(llm, tokenizer, item, cfg)
-            record   = {
-                "id":       item["id"],
-                "variant":  variant,
-                "is_mcq":   bool(item.get("options")),
-                "gold":     item["answer"],
-                "response": response,
-                "correct":  score_response(item, response, judger),
-            }
-            f_out.write(json.dumps(record) + "\n")
-            f_out.flush()
+        with tqdm(total=len(remaining), desc=f"  {variant}") as pbar:
+            for batch_start in range(0, len(remaining), batch_size):
+                batch = remaining[batch_start : batch_start + batch_size]
+                responses = generate_batch(llm, tokenizer, batch, cfg)
+                for item, response in zip(batch, responses):
+                    record = {
+                        "id":       item["id"],
+                        "variant":  variant,
+                        "is_mcq":   bool(item.get("options")),
+                        "gold":     item["answer"],
+                        "response": response,
+                        "correct":  score_response(item, response, judger),
+                    }
+                    f_out.write(json.dumps(record) + "\n")
+                pbar.update(len(batch))
+                f_out.flush()
 
     # Read all results (existing + just written) for reporting
     results = [json.loads(l) for l in open(out_path)]
@@ -328,6 +349,9 @@ def main():
                              "Use 2048 for fast smoke tests.")
     parser.add_argument("--gpu", default="0", help="CUDA_VISIBLE_DEVICES (default: 0)")
     parser.add_argument("--data", default=DATA_PATH, help="Path to JSONL dataset")
+    parser.add_argument("--batch_size", type=int, default=2,
+                        help="Number of prompts per GPU call (default: 2, tuned for A30 24 GB). "
+                             "Reduce to 1 if you get CUDA OOM errors; increase to 4 on A100 40 GB.")
     args = parser.parse_args()
 
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
@@ -341,11 +365,13 @@ def main():
     n_free = len(data) - n_mcq
     print(f"Dataset : {args.data}")
     print(f"Questions: {len(data)}  ({n_mcq} MCQ, {n_free} free-form)")
+    print(f"Batch size: {args.batch_size}")
 
     # Load model
     print(f"\nLoading {MODEL_ID} (4-bit BnB quantization)...")
     tokenizer = AutoTokenizer.from_pretrained(MODEL_ID, trust_remote_code=True)
     tokenizer.pad_token = tokenizer.eos_token
+    tokenizer.padding_side = "left"
 
     bnb_config = BitsAndBytesConfig(
         load_in_4bit=True,
@@ -369,7 +395,7 @@ def main():
     out_dir.mkdir(exist_ok=True)
 
     variants_to_run = list(VARIANTS) if args.variant == "all" else [args.variant]
-    summary = [run_variant(v, llm, tokenizer, data, judger, out_dir) for v in variants_to_run]
+    summary = [run_variant(v, llm, tokenizer, data, judger, out_dir, args.batch_size) for v in variants_to_run]
 
     # Summary table
     W = 72
