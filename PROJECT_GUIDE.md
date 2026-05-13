@@ -427,13 +427,17 @@ You are an expert mathematician. Solve the problem step-by-step...
 Let f(x) = 4x^2 + x + 2, find f(3).
 <|im_end|>
 <|im_start|>assistant
+<think>
 We substitute x = 3 into f(x):
 f(3) = 4(3)^2 + 3 + 2 = 36 + 3 + 2 = 41
 \boxed{41}
+</think>
+
+The answer is $\boxed{41}$.
 <|im_end|>
 ```
 
-The model learns to produce detailed, well-structured reasoning that ends with `\boxed{}`.
+The MATH dataset solution is wrapped in `<think>...</think>` and the final `\boxed{}` answer is placed outside the think block. This matches the model's inference-time output format (the judger strips everything before `</think>` when extracting answers). Loss is computed on the assistant turn only via `DataCollatorForCompletionOnlyLM` — prompt tokens are masked out.
 
 ### Hyperparameters
 
@@ -450,7 +454,7 @@ The model learns to produce detailed, well-structured reasoning that ends with `
 | Batch size | 1 per GPU | Constrained by sequence length |
 | Gradient accumulation | 8 | Effective batch = 8 |
 | Epochs | 3 | Standard for SFT on 7,500 examples |
-| Max sequence length | 4,096 tokens | Balances coverage vs. memory |
+| Max sequence length | 16,384 tokens | Accommodates think-wrapped solutions |
 
 ### Trainable parameters
 
@@ -652,7 +656,7 @@ Evaluation: unified accuracy (correct/total, each question weighted equally).
 > We sweep temperature from 0.0 (greedy) to 0.9 to identify the optimal single-sample regime. We then apply self-consistency [cite Wang 2023] with N=3, 5, 7 samples at T=0.7: multiple independent responses are generated and the modal answer is selected.
 
 **Model 3 — QLoRA Fine-Tuning**: *(~3 paragraphs)*
-> We fine-tune using QLoRA [cite Dettmers 2023] on the MATH dataset [cite Hendrycks 2021] (7,500 competition math problems). The base model is frozen in 4-bit; LoRA adapters (rank 16, alpha 32) are trained on all attention projection and FFN layers. Training uses paged AdamW with `lr=2×10⁻⁴`, cosine schedule, effective batch size 8, for 3 epochs.
+> We fine-tune using QLoRA [cite Dettmers 2023] on the MATH dataset [cite Hendrycks 2021] (7,500 competition math problems). The base model is frozen in 4-bit; LoRA adapters (rank 16, alpha 32) are trained on all attention projection and FFN layers. Training uses paged AdamW with `lr=2×10⁻⁴`, cosine schedule, effective batch size 8, for 3 epochs. Training samples are formatted with the MATH solution inside `<think>...</think>` and the boxed answer outside, matching the model's inference-time output format. Loss is computed on the assistant turn only (prompt tokens masked). Inference uses `enable_thinking=True` and `max_new_tokens=16384` to allow complete reasoning traces.
 
 ---
 

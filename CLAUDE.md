@@ -28,7 +28,7 @@ export HF_HOME=/datasets/$USER/hf_cache  # avoids home dir disk quota during tra
 python model1_prompt_engineering.py --variant v0_baseline --limit 5 --max_tokens 2048
 python model2_sampling_voting.py --experiment voting_n3 --limit 5 --max_tokens 2048
 python model3_finetune_train.py --max_steps 5 --subset 50
-python model3_finetune_infer.py --checkpoint checkpoints/model3_qlora --limit 5 --max_tokens 2048
+python model3_finetune_infer.py --checkpoint checkpoints/model3_qlora --limit 5 --max_tokens 4096
 
 # Model 1 — all 4 prompt variants (~50 min)
 python model1_prompt_engineering.py --variant all
@@ -72,9 +72,9 @@ All three models load Qwen3-4B-Thinking-2507 in 4-bit (NF4) quantization via Bit
 
 - **`model2_sampling_voting.py`** — Temperature sweep (T=0.0–0.9) and majority voting (N=3,5,7 at T=0.7). Voting extracts `\boxed{}` from each sample, normalizes via `judger.norm_ans_str()`, and takes the modal answer. Processes questions in batches (`--batch_size 2` default); voting runs N generation rounds per batch. Writes `results/model2_<experiment>_results.jsonl`.
 
-- **`model3_finetune_train.py`** — QLoRA fine-tuning on `lighteval/MATH` (7,500 problems). Frozen 4-bit base + trainable LoRA adapters (rank=16, alpha=32) on attention + FFN layers. Uses `paged_adamw_8bit`, lr=2e-4, cosine schedule, effective batch=8, 3 epochs. Saves to `checkpoints/model3_qlora/`.
+- **`model3_finetune_train.py`** — QLoRA fine-tuning on `lighteval/MATH` (7,500 problems). Frozen 4-bit base + trainable LoRA adapters (rank=16, alpha=32) on attention + FFN layers. Uses `paged_adamw_8bit`, lr=2e-4, cosine schedule, effective batch=8, 3 epochs. Training samples are formatted with the MATH solution inside `<think>...</think>` and the `\boxed{}` answer outside, matching the model's inference-time output format. Loss is computed on the assistant turn only via `DataCollatorForCompletionOnlyLM`. Max sequence length: 16384. Saves to `checkpoints/model3_qlora/`.
 
-- **`model3_finetune_infer.py`** — Loads base model + LoRA adapter from checkpoint, runs inference on public or private set. Processes questions in batches (`--batch_size 2` default, tuned for A30 24 GB; use `--batch_size 1` if OOM). Writes `.jsonl` results and `results/model3_submission.csv` for Kaggle.
+- **`model3_finetune_infer.py`** — Loads base model + LoRA adapter from checkpoint, runs inference on public or private set. Uses `enable_thinking=True` in `apply_chat_template` to activate the model's thinking mode. Max new tokens: 16384. Processes questions in batches (`--batch_size 2` default, tuned for A30 24 GB; use `--batch_size 1` if OOM). Writes `.jsonl` results and `results/model3_submission.csv` for Kaggle.
 
 ### Result file format
 All `.jsonl` files in `results/` have one JSON object per line with fields: `id`, `is_mcq`, `gold`, `response` (or `responses` for voting), `correct`. Voting records also have `voted`, `agreement`, `n_samples`.
