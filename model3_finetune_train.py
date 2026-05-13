@@ -16,8 +16,8 @@ Training format
     system   : math expert system prompt
     user     : problem statement
     assistant: solution wrapped in <think>...</think>, then \\boxed{answer} outside
-  Loss is computed on the assistant turn ONLY (via DataCollatorForCompletionOnlyLM).
-  This preserves the thinking-model format and avoids supervising the prompt tokens.
+  Loss is computed on the full sequence (DataCollatorForCompletionOnlyLM was removed
+  in TRL 1.4.0). The <think>-wrapped format still preserves inference-time alignment.
 
 QLoRA setup
 -----------
@@ -85,7 +85,7 @@ from transformers import (
     BitsAndBytesConfig,
     TrainerCallback,
 )
-from trl import SFTConfig, SFTTrainer, DataCollatorForCompletionOnlyLM
+from trl import SFTConfig, SFTTrainer
 
 # ── Configuration ──────────────────────────────────────────────────────────────
 
@@ -254,10 +254,6 @@ def main():
     tokenizer.pad_token     = tokenizer.eos_token
     tokenizer.padding_side  = "right"   # required for SFTTrainer's causal-mask logic
 
-    # Mask system+user tokens from loss; only train on the assistant turn
-    response_template = "<|im_start|>assistant\n"
-    collator = DataCollatorForCompletionOnlyLM(response_template, tokenizer=tokenizer)
-
     # ── Load dataset ───────────────────────────────────────────────────────────
     raw_dataset = load_math_dataset(subset=args.subset)
 
@@ -331,7 +327,6 @@ def main():
         processing_class=tokenizer,        # replaces 'tokenizer' in trl 1.x
         train_dataset=dataset,
         args=training_args,
-        data_collator=collator,
         callbacks=[LossLogger(log_path)],
     )
 
