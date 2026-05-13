@@ -47,7 +47,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 
 MODEL_ID   = "Qwen/Qwen3-4B-Thinking-2507"
 DATA_PATH  = "data/public.jsonl"
-MAX_TOKENS = 4096
+MAX_TOKENS = 16384
 
 # Sampling kept identical across all variants to isolate prompt effect.
 SAMPLING_PARAMS = dict(
@@ -244,6 +244,7 @@ def generate_batch(llm, tokenizer, items: list[dict], cfg: dict) -> list[str]:
                  {"role": "user",   "content": usr_p}],
                 tokenize=False,
                 add_generation_prompt=True,
+                enable_thinking=True,
             )
         )
     inputs = tokenizer(

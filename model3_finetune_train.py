@@ -13,11 +13,11 @@ Training format
 ---------------
   The MATH dataset provides step-by-step solutions that end with \\boxed{answer}.
   Each training sample is formatted as a Qwen3 chat turn:
-    system  : math expert system prompt
-    user    : problem statement
-    assistant: full reference solution (which ends with \\boxed{answer})
-  Loss is computed on the FULL sequence (system + user + assistant) for simplicity.
-  The model learns to produce detailed CoT solutions ending in \\boxed{}.
+    system   : math expert system prompt
+    user     : problem statement
+    assistant: solution wrapped in <think>...</think>, then \\boxed{answer} outside
+  Loss is computed on the assistant turn ONLY (via DataCollatorForCompletionOnlyLM).
+  This preserves the thinking-model format and avoids supervising the prompt tokens.
 
 QLoRA setup
 -----------
@@ -27,7 +27,7 @@ QLoRA setup
   Optimizer  : paged_adamw_8bit, lr=2e-4, cosine schedule, warmup_ratio=0.03
   Effective batch: 8  (batch_size=1 × grad_accumulation=8)
   Epochs     : 3  (configurable via --epochs)
-  Max seq len: 4096
+  Max seq len: 16384
 
 Usage
 -----
@@ -85,7 +85,7 @@ from transformers import (
     BitsAndBytesConfig,
     TrainerCallback,
 )
-from trl import SFTConfig, SFTTrainer
+from trl import SFTConfig, SFTTrainer, DataCollatorForCompletionOnlyLM
 
 # ── Configuration ──────────────────────────────────────────────────────────────
 
@@ -178,18 +178,27 @@ def format_sample(sample: dict, tokenizer) -> str:
     """
     Format one MATH dataset sample as a full Qwen3 chat string.
 
-    The assistant turn is the raw reference solution from the MATH dataset,
-    which naturally includes step-by-step reasoning and ends with \\boxed{answer}.
-    Training loss is computed over the full sequence.
+    The assistant turn wraps the reference solution in <think>...</think> to
+    match the model's inference-time output format, followed by a \\boxed{}
+    outside the think block (where the judger extracts the final answer).
+    Loss is computed on the assistant turn only via DataCollatorForCompletionOnlyLM.
     """
-    # Different dataset versions use different field names
     problem  = sample.get("problem")  or sample.get("question",  "")
     solution = sample.get("solution") or sample.get("answer",    "")
+    boxed    = extract_boxed_answer(solution)
+
+    if boxed:
+        assistant_content = (
+            f"<think>\n{solution}\n</think>\n\n"
+            f"The answer is $\\boxed{{{boxed}}}$."
+        )
+    else:
+        assistant_content = f"<think>\n{solution}\n</think>"
 
     messages = [
         {"role": "system",    "content": SYSTEM_PROMPT},
         {"role": "user",      "content": problem},
-        {"role": "assistant", "content": solution},
+        {"role": "assistant", "content": assistant_content},
     ]
     return tokenizer.apply_chat_template(
         messages,
@@ -244,6 +253,10 @@ def main():
     tokenizer = AutoTokenizer.from_pretrained(MODEL_ID, trust_remote_code=True)
     tokenizer.pad_token     = tokenizer.eos_token
     tokenizer.padding_side  = "right"   # required for SFTTrainer's causal-mask logic
+
+    # Mask system+user tokens from loss; only train on the assistant turn
+    response_template = "<|im_start|>assistant\n"
+    collator = DataCollatorForCompletionOnlyLM(response_template, tokenizer=tokenizer)
 
     # ── Load dataset ───────────────────────────────────────────────────────────
     raw_dataset = load_math_dataset(subset=args.subset)
@@ -309,7 +322,7 @@ def main():
         dataloader_num_workers=0,
         remove_unused_columns=False,
         dataset_text_field="text",         # moved here from SFTTrainer in trl 1.x
-        max_length=4096,                   # renamed from max_seq_length in trl 1.1+
+        max_length=16384,                  # renamed from max_seq_length in trl 1.1+
     )
 
     # ── Trainer ────────────────────────────────────────────────────────────────
@@ -318,6 +331,7 @@ def main():
         processing_class=tokenizer,        # replaces 'tokenizer' in trl 1.x
         train_dataset=dataset,
         args=training_args,
+        data_collator=collator,
         callbacks=[LossLogger(log_path)],
     )
 
@@ -329,7 +343,7 @@ def main():
     print(f"  LR            : {args.lr}  scheduler: cosine  warmup: 3%")
     print(f"  Effective bs  : {training_args.per_device_train_batch_size * training_args.gradient_accumulation_steps}")
     print(f"  Epochs        : {args.epochs}  max_steps: {args.max_steps}")
-    print(f"  Max seq len   : 4096")
+    print(f"  Max seq len   : 16384")
     print(f"  Training set  : {len(dataset)} samples")
     print(f"  Output        : {out_dir}")
     print(f"  Loss log      : {log_path}")
