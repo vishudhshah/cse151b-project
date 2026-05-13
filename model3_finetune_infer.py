@@ -53,7 +53,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 MODEL_ID           = "Qwen/Qwen3-4B-Thinking-2507"
 DEFAULT_CHECKPOINT = "checkpoints/model3_qlora"
 DATA_PATH          = "data/public.jsonl"
-MAX_TOKENS         = 4096
+MAX_TOKENS         = 16384
 
 SAMPLING_PARAMS = dict(
     max_new_tokens=MAX_TOKENS,
@@ -169,6 +169,7 @@ def generate_batch(model, tokenizer, items: list[dict]) -> list[str]:
                  {"role": "user",   "content": usr_p}],
                 tokenize=False,
                 add_generation_prompt=True,
+                enable_thinking=True,
             )
         )
 
