@@ -4,10 +4,6 @@ __pycache__/
 *.pyo
 .venv/
 
-# Logs — runtime output, not useful to track
-logs/
-logs/**
-
 # Large model / training files (belt-and-suspenders)
 *.safetensors
 *.pt
@@ -30,3 +26,6 @@ constraints.txt
 *.log
 *.out
 *.synctex.gz
+
+# Logs
+!logs/*.log
