@@ -60,6 +60,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 MODEL_ID   = "Qwen/Qwen3-4B-Thinking-2507"
 DATA_PATH  = "data/public.jsonl"
 MAX_TOKENS = 16384
+THINKING_BUDGET = 3072
 
 VOTING_TEMPERATURE = 0.7   # temperature used for all majority-voting experiments
 TEMP_SWEEP_VALUES  = [0.0, 0.3, 0.5, 0.7, 0.9]
@@ -214,6 +215,7 @@ def generate_batch(llm, tokenizer, items: list[dict], prompt_variant: str,
                 tokenize=False,
                 add_generation_prompt=True,
                 enable_thinking=True,
+                thinking_budget=THINKING_BUDGET,
             )
         )
     inputs = tokenizer(

@@ -173,7 +173,7 @@ python model3_finetune_train.py --max_steps 5 --subset 50
 python model3_finetune_infer.py --checkpoint checkpoints/model3_qlora --limit 5 --max_tokens 2048
 ```
 
-> **Progress bar looks stuck on first question?** Normal — the thinking model generates up to 16,384 tokens before answering. The bar only ticks after each complete response. `--max_tokens 2048` makes smoke tests faster; use the default for real runs.
+> **Progress bar looks stuck on first question?** Normal — the thinking model generates a long `<think>` block before answering. The bar only ticks after each complete batch. Expect ~80–150 s/batch on A30; the ETA shown after the first few batches is reliable.
 
 ### Full experiment run
 
@@ -214,9 +214,11 @@ kubectl delete pod <pod-name>        # manually terminate a pod when done
 | Step | Est. time |
 |------|-----------|
 | Model 3 — training (3 epochs) | ~10 hours |
-| Model 1 — baseline variant | ~30 min |
-| Model 2 — voting N=3 | ~20 min |
-| Model 3 — inference | ~1–2 hours (16k max tokens) |
+| Model 1 — one variant (thinking_budget=3072) | ~12–15 hours |
+| Model 2 — voting N=3 (with thinking_budget fix) | ~55–65 hours |
+| Model 3 — inference | ~12–15 hours |
+
+> **Why so long?** Qwen3-Thinking generates a long `<think>` block per question. Model 1 caps this with `thinking_budget=3072`. Models 2 and 3 do not — add `--max_tokens 4096` to those scripts if you need faster turnaround at a small accuracy cost.
 
 ---
 

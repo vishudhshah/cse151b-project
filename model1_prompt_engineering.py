@@ -48,6 +48,11 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 MODEL_ID   = "Qwen/Qwen3-4B-Thinking-2507"
 DATA_PATH  = "data/public.jsonl"
 MAX_TOKENS = 16384
+# Cap the thinking block to avoid the model spending 15k tokens on reasoning for
+# routine problems. The remaining tokens go to the answer. Empirically 3072
+# thinking tokens covers multi-step math while keeping wall-clock time sane on
+# an A30 (~90-140 s/batch vs ~570 s/batch with an uncapped thinking chain).
+THINKING_BUDGET = 3072
 
 # Sampling kept identical across all variants to isolate prompt effect.
 SAMPLING_PARAMS = dict(
@@ -245,6 +250,7 @@ def generate_batch(llm, tokenizer, items: list[dict], cfg: dict) -> list[str]:
                 tokenize=False,
                 add_generation_prompt=True,
                 enable_thinking=True,
+                thinking_budget=THINKING_BUDGET,
             )
         )
     inputs = tokenizer(
@@ -347,7 +353,7 @@ def main():
                         help="Only evaluate on first N questions")
     parser.add_argument("--max_tokens", type=int, default=MAX_TOKENS,
                         help=f"Max new tokens per response (default: {MAX_TOKENS}). "
-                             "Use 2048 for fast smoke tests.")
+                             "Use 4096 for full runs on A30; 2048 for smoke tests.")
     parser.add_argument("--gpu", default="0", help="CUDA_VISIBLE_DEVICES (default: 0)")
     parser.add_argument("--data", default=DATA_PATH, help="Path to JSONL dataset")
     parser.add_argument("--batch_size", type=int, default=2,
