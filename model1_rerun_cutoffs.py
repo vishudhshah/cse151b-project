@@ -41,8 +41,15 @@ _SAMPLING_KWARGS = dict(
 _CHUNK_SIZE = 50
 
 
-def is_cutoff(response: str) -> bool:
+import re as _re
+
+def is_original_cutoff(response: str) -> bool:
+    """Detect cutoffs in thinking-mode responses (no </think> means mid-think truncation)."""
     return "</think>" not in response
+
+def is_no_thinking_cutoff(response: str) -> bool:
+    """Detect incomplete no-thinking responses (must contain \boxed{})."""
+    return not bool(_re.search(r'\\boxed\{', response))
 
 
 def main():
@@ -60,7 +67,7 @@ def main():
 
     results_path = Path(args.results)
     records = [json.loads(l) for l in open(results_path)]
-    cutoff_ids = {r["id"] for r in records if is_cutoff(r["response"])}
+    cutoff_ids = {r["id"] for r in records if is_original_cutoff(r["response"])}
 
     print(f"Total records  : {len(records)}")
     print(f"Cutoffs to fix : {len(cutoff_ids)}")
@@ -138,7 +145,7 @@ def main():
             "correct":  score(item, response),
             "rerun":    True,
         }
-        if is_cutoff(response):
+        if is_no_thinking_cutoff(response):
             still_cutoff += 1
         else:
             patched += 1
