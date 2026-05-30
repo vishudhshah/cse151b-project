@@ -126,6 +126,15 @@ def main():
         for item, out in zip(chunk, outputs):
             new_responses[item["id"]] = out.outputs[0].text.strip()
 
+    # Debug: show first 3 new responses
+    print("\n=== Sample rerun responses ===")
+    for qid, resp in list(new_responses.items())[:3]:
+        has_box = bool(_re.search(r'\\boxed\{', resp))
+        has_think_end = "</think>" in resp
+        print(f"  id={qid} len={len(resp)} has_boxed={has_box} has_think_end={has_think_end}")
+        print(f"  tail: {repr(resp[-200:])}")
+        print()
+
     # Score new responses (private set has no answers, so correct=None)
     def score(item, response):
         if "answer" not in item:
