@@ -2,7 +2,8 @@
 # Everything else (torch 2.11+cu128, transformers, accelerate, datasets, sympy, numpy,
 # tqdm, torchaudio, torchvision) is already in the image and inherited via --system-site-packages.
 
-bitsandbytes>=0.46.1          # >=0.46.1 required on Python 3.13
+vllm>=0.6.0                     # fast inference for model1 and model2 (PagedAttention, continuous batching)
+bitsandbytes>=0.46.1            # >=0.46.1 required on Python 3.13; used by model3 (QLoRA training + inference)
 antlr4-python3-runtime==4.11.1  # exact version required by sympy.parsing.latex
 peft>=0.10.0
 trl>=0.8.6

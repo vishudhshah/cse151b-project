@@ -1,11 +1,8 @@
 """
 Model 3 — Inference: QLoRA Fine-tuned Model for CSE 151B Math Competition
 
-Loads Qwen/Qwen3-4B-Thinking-2507 with a fine-tuned LoRA adapter and runs
-inference on the competition dataset (public or private).
-
-The base model is loaded in 4-bit quantization (same as training) and the
-LoRA adapter from the specified checkpoint is merged for inference.
+Loads Qwen/Qwen3-4B-Thinking-2507 with a fine-tuned LoRA adapter via vLLM
+and runs inference on the competition dataset (public or private).
 
 Usage
 -----
@@ -29,10 +26,10 @@ Output (private set, --no_eval)
 ---------------------------------
   results/model3_private_submission.csv    — Kaggle-format submission
 
-Runtime estimate (A100 40 GB)
-------------------------------
-  Full 1126-question public set: ~12 min
-  Full private set:              ~12 min
+Runtime estimate (A30 24 GB, vLLM, bfloat16)
+---------------------------------------------
+  Full 1126-question public set: ~10 min
+  Full private set:              ~10 min
 """
 
 import argparse
@@ -44,26 +41,21 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-import torch
 from tqdm import tqdm
-from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+from transformers import AutoTokenizer
+from vllm import LLM, SamplingParams
+from vllm.lora.request import LoRARequest
 
 # ── Configuration ──────────────────────────────────────────────────────────────
 
 MODEL_ID           = "Qwen/Qwen3-4B-Thinking-2507"
 DEFAULT_CHECKPOINT = "checkpoints/model3_qlora"
 DATA_PATH          = "data/public.jsonl"
-MAX_TOKENS         = 16384
+MAX_TOKENS         = 4096
 THINKING_BUDGET    = 3072
+LORA_RANK          = 16  # must match rank used in model3_finetune_train.py
 
-SAMPLING_PARAMS = dict(
-    max_new_tokens=MAX_TOKENS,
-    temperature=0.6,
-    top_p=0.95,
-    top_k=20,
-    repetition_penalty=1.0,
-    do_sample=True,
-)
+_CHUNK_SIZE = 50  # flush results to disk every N questions
 
 SYSTEM_PROMPT = (
     "You are an expert mathematician. Solve the problem step-by-step. "
@@ -77,55 +69,6 @@ SYSTEM_PROMPT_MCQ = (
     "Read the problem and the answer choices below, then select the single best answer. "
     "Output ONLY the letter of your chosen option inside \\boxed{}, e.g. \\boxed{C}."
 )
-
-# ── Model Loading ──────────────────────────────────────────────────────────────
-
-def load_model_with_adapter(checkpoint_dir: str):
-    """
-    Load the 4-bit base model and apply the LoRA adapter from checkpoint_dir.
-    Falls back to base model only if no adapter is found (with a warning).
-    """
-    try:
-        from peft import PeftModel
-        has_peft = True
-    except ImportError:
-        has_peft = False
-        print("WARNING: peft not installed. Loading base model without adapter.")
-        print("         Install with: pip install peft")
-
-    print(f"Loading {MODEL_ID} (4-bit BnB quantization)...")
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_ID, trust_remote_code=True)
-    tokenizer.pad_token = tokenizer.eos_token
-    tokenizer.padding_side = "left"
-
-    bnb_config = BitsAndBytesConfig(
-        load_in_4bit=True,
-        bnb_4bit_compute_dtype=torch.bfloat16,
-        bnb_4bit_quant_type="nf4",
-        bnb_4bit_use_double_quant=True,
-    )
-    model = AutoModelForCausalLM.from_pretrained(
-        MODEL_ID,
-        trust_remote_code=True,
-        quantization_config=bnb_config,
-        device_map="auto",
-    )
-
-    adapter_path = Path(checkpoint_dir)
-    adapter_config = adapter_path / "adapter_config.json"
-
-    if has_peft and adapter_config.exists():
-        print(f"Loading LoRA adapter from: {checkpoint_dir}")
-        model = PeftModel.from_pretrained(model, checkpoint_dir)
-        model.eval()
-        print("Adapter loaded successfully.")
-    elif has_peft:
-        print(f"WARNING: No adapter_config.json found in {checkpoint_dir}.")
-        print("         Running with base model only (no fine-tuning applied).")
-    else:
-        print("Running with base model only.")
-
-    return model, tokenizer
 
 # ── Prompt Building ────────────────────────────────────────────────────────────
 
@@ -158,51 +101,9 @@ def score_response(item: dict, response: str, judger) -> bool:
     except Exception:
         return False
 
-# ── Inference ─────────────────────────────────────────────────────────────────
-
-def generate_batch(model, tokenizer, items: list[dict]) -> list[str]:
-    prompt_texts = []
-    for item in items:
-        sys_p, usr_p = build_prompt(item["question"], item.get("options"))
-        prompt_texts.append(
-            tokenizer.apply_chat_template(
-                [{"role": "system", "content": sys_p},
-                 {"role": "user",   "content": usr_p}],
-                tokenize=False,
-                add_generation_prompt=True,
-                enable_thinking=True,
-                thinking_budget=THINKING_BUDGET,
-            )
-        )
-
-    inputs = tokenizer(
-        prompt_texts,
-        return_tensors="pt",
-        padding=True,
-        truncation=True,
-        max_length=8192,
-    ).to(model.device)
-
-    with torch.no_grad():
-        output_ids = model.generate(
-            **inputs,
-            **SAMPLING_PARAMS,
-            pad_token_id=tokenizer.eos_token_id,
-        )
-
-    # With left-padding, all inputs share the same padded length; generated
-    # tokens for item i start at this offset in output_ids[i].
-    input_len = inputs["input_ids"].shape[1]
-    responses = []
-    for i in range(len(items)):
-        new_tokens = output_ids[i][input_len:]
-        responses.append(tokenizer.decode(new_tokens, skip_special_tokens=True).strip())
-    return responses
-
 # ── CSV Submission Writer ─────────────────────────────────────────────────────
 
 def write_submission_csv(results: list[dict], csv_path: Path):
-    """Write Kaggle submission CSV with id and response columns."""
     with open(csv_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f, quoting=csv.QUOTE_ALL)
         writer.writerow(["id", "response"])
@@ -227,15 +128,11 @@ def main():
     parser.add_argument("--gpu",        default="0")
     parser.add_argument("--no_eval",    action="store_true",
                         help="Skip scoring (use for private test set)")
-    parser.add_argument("--batch_size", type=int, default=2,
-                        help="Number of prompts per GPU call (default: 2, tuned for A30 24 GB). "
-                             "Reduce to 1 if you get CUDA OOM errors; increase to 4 on A100 40 GB.")
     parser.add_argument("--output",     default="results",
                         help="Output directory (default: results/)")
     args = parser.parse_args()
 
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
-    SAMPLING_PARAMS["max_new_tokens"] = args.max_tokens
 
     data = [json.loads(line) for line in open(args.data)]
     if args.limit:
@@ -247,9 +144,38 @@ def main():
     print(f"Questions : {len(data)}  ({n_mcq} MCQ, {len(data)-n_mcq} free-form)")
     print(f"Mode      : {'inference-only (no ground truth)' if is_private else 'eval'}")
     print(f"Checkpoint: {args.checkpoint}")
-    print(f"Batch size : {args.batch_size}")
 
-    model, tokenizer = load_model_with_adapter(args.checkpoint)
+    # Check whether a LoRA adapter exists at the checkpoint path
+    adapter_config = Path(args.checkpoint) / "adapter_config.json"
+    has_adapter = adapter_config.exists()
+    if not has_adapter:
+        print(f"WARNING: No adapter_config.json found in {args.checkpoint}.")
+        print("         Running with base model only (no fine-tuning applied).")
+
+    print(f"\nLoading tokenizer for {MODEL_ID}...")
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_ID, trust_remote_code=True)
+
+    print(f"Loading {MODEL_ID} with vLLM (bfloat16{', LoRA enabled' if has_adapter else ''})...")
+    llm = LLM(
+        model=MODEL_ID,
+        enable_lora=has_adapter,
+        max_lora_rank=LORA_RANK,
+        max_model_len=8192,
+        gpu_memory_utilization=0.9,
+        dtype="bfloat16",
+        trust_remote_code=True,
+    )
+    print("Model loaded.\n")
+
+    lora_request = LoRARequest("model3_adapter", 1, args.checkpoint) if has_adapter else None
+
+    sampling_params = SamplingParams(
+        max_tokens=args.max_tokens,
+        temperature=0.6,
+        top_p=0.95,
+        top_k=20,
+        repetition_penalty=1.0,
+    )
 
     if not is_private:
         sys.path.insert(0, str(Path(__file__).parent))
@@ -276,13 +202,30 @@ def main():
     if done_ids:
         print(f"Resuming: {len(done_ids)} done, {len(remaining)} remaining")
 
-    # Write results after each batch; progress bar tracks individual questions
     with open(jsonl_path, "a") as f_out:
         with tqdm(total=len(remaining), desc="Generating") as pbar:
-            for batch_start in range(0, len(remaining), args.batch_size):
-                batch     = remaining[batch_start : batch_start + args.batch_size]
-                responses = generate_batch(model, tokenizer, batch)
-                for item, response in zip(batch, responses):
+            for chunk_start in range(0, len(remaining), _CHUNK_SIZE):
+                chunk = remaining[chunk_start : chunk_start + _CHUNK_SIZE]
+
+                prompt_texts = []
+                for item in chunk:
+                    sys_p, usr_p = build_prompt(item["question"], item.get("options"))
+                    prompt_texts.append(
+                        tokenizer.apply_chat_template(
+                            [{"role": "system", "content": sys_p},
+                             {"role": "user",   "content": usr_p}],
+                            tokenize=False,
+                            add_generation_prompt=True,
+                            enable_thinking=True,
+                            thinking_budget=THINKING_BUDGET,
+                        )
+                    )
+
+                outputs = llm.generate(prompt_texts, sampling_params,
+                                       lora_request=lora_request)
+
+                for item, output in zip(chunk, outputs):
+                    response = output.outputs[0].text.strip()
                     record = {
                         "id":       item["id"],
                         "is_mcq":   bool(item.get("options")),
@@ -292,17 +235,15 @@ def main():
                         record["gold"]    = item["answer"]
                         record["correct"] = score_response(item, response, judger)
                     f_out.write(json.dumps(record) + "\n")
-                pbar.update(len(batch))
+                pbar.update(len(chunk))
                 f_out.flush()
 
     results = [json.loads(l) for l in open(jsonl_path)]
     print(f"Results JSONL: {jsonl_path}  ({len(results)} records)")
 
-    # Save submission CSV
     csv_name = "model3_submission.csv" if not is_private else "model3_private_submission.csv"
     write_submission_csv(results, out_dir / csv_name)
 
-    # Print accuracy if we have ground truth
     if not is_private and all("correct" in r for r in results):
         mcq_res  = [r for r in results if r["is_mcq"]]
         free_res = [r for r in results if not r["is_mcq"]]

@@ -8,7 +8,7 @@ This script also sweeps temperature to measure its effect on single-sample accur
 Experiments
 -----------
   temp_sweep   — one sample per question at T ∈ {0.0, 0.3, 0.5, 0.7, 0.9}
-                 T=0.0 uses greedy decoding (do_sample=False)
+                 T=0.0 uses greedy decoding
   voting_n3    — 3 samples per question, T=0.7, majority vote
   voting_n5    — 5 samples per question, T=0.7, majority vote
   voting_n7    — 7 samples per question, T=0.7, majority vote
@@ -35,11 +35,11 @@ Output
   results/model2_{experiment}_results.jsonl  — per-question records
   Printed summary table
 
-Runtime estimate (A100 40 GB, full 1126 questions)
----------------------------------------------------
-  temp_sweep : ~60 min  (5 temperatures × ~12 min)
-  voting_n5  : ~60 min  (5 samples × ~12 min)
-  voting_n7  : ~84 min  (7 samples × ~12 min)
+Runtime estimate (A30 24 GB, vLLM, bfloat16, full 1126 questions)
+------------------------------------------------------------------
+  temp_sweep : ~15 min  (5 temperatures)
+  voting_n5  : ~25 min  (5 samples generated in one vLLM call per chunk)
+  voting_n7  : ~35 min  (7 samples generated in one vLLM call per chunk)
 """
 
 import argparse
@@ -51,19 +51,21 @@ from collections import Counter
 from pathlib import Path
 from typing import Optional
 
-import torch
 from tqdm import tqdm
-from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+from transformers import AutoTokenizer
+from vllm import LLM, SamplingParams
 
 # ── Configuration ──────────────────────────────────────────────────────────────
 
 MODEL_ID   = "Qwen/Qwen3-4B-Thinking-2507"
 DATA_PATH  = "data/public.jsonl"
-MAX_TOKENS = 16384
+MAX_TOKENS = 4096
 THINKING_BUDGET = 3072
 
-VOTING_TEMPERATURE = 0.7   # temperature used for all majority-voting experiments
+VOTING_TEMPERATURE = 0.7
 TEMP_SWEEP_VALUES  = [0.0, 0.3, 0.5, 0.7, 0.9]
+
+_CHUNK_SIZE = 50  # flush results to disk every N questions
 
 # ── Prompt Definitions (mirrors Model 1 v1_enhanced_cot as default) ─────────────
 
@@ -137,19 +139,14 @@ def score_single(item: dict, response: str, judger) -> bool:
 # ── Majority Voting ────────────────────────────────────────────────────────────
 
 def majority_vote_mcq(responses: list[str]) -> str:
-    """Return the modal letter extracted from a list of responses."""
     letters = [extract_letter(r) for r in responses]
-    letters = [l for l in letters if l]  # drop blanks
+    letters = [l for l in letters if l]
     if not letters:
         return ""
     return Counter(letters).most_common(1)[0][0]
 
 
 def majority_vote_free(responses: list[str], judger) -> str:
-    """
-    Extract and normalize \\boxed{} answers from each response, return the most
-    common normalized string. Falls back to first extractable answer on ties.
-    """
     normalized = []
     for r in responses:
         raw = judger.extract_boxed_answer(r)
@@ -162,20 +159,17 @@ def majority_vote_free(responses: list[str], judger) -> str:
     counts = Counter(normalized)
     modal, modal_count = counts.most_common(1)[0]
 
-    # If there's a strict majority (>50%) use it; otherwise fall back to first sample.
     if modal_count > len(responses) / 2:
         return modal
     return normalized[0]
 
 
 def score_voted(item: dict, voted_answer: str, judger) -> bool:
-    """Score a voted answer (string) against the ground truth."""
     is_mcq = bool(item.get("options"))
     gold   = item["answer"]
     if is_mcq:
         return voted_answer.upper() == str(gold).strip().upper()
     gold_list = gold if isinstance(gold, list) else [gold]
-    # Wrap in \\boxed{} so auto_judge's extraction finds it
     synthetic_response = f"\\boxed{{{voted_answer}}}"
     try:
         return judger.auto_judge(pred=synthetic_response, gold=gold_list,
@@ -185,13 +179,12 @@ def score_voted(item: dict, voted_answer: str, judger) -> bool:
 
 
 def agreement_rate(responses: list[str], voted: str, item: dict, judger) -> float:
-    """Fraction of samples that agree with the voted answer."""
     is_mcq = bool(item.get("options"))
     if is_mcq:
         letters = [extract_letter(r) for r in responses]
         agree   = sum(l == voted for l in letters if l)
         return agree / len(responses)
-    normed  = []
+    normed = []
     for r in responses:
         raw = judger.extract_boxed_answer(r)
         if raw:
@@ -201,10 +194,9 @@ def agreement_rate(responses: list[str], voted: str, item: dict, judger) -> floa
     voted_norm = judger.norm_ans_str(voted) if voted else ""
     return sum(n == voted_norm for n in normed) / len(responses)
 
-# ── Single-Sample Inference ────────────────────────────────────────────────────
+# ── Prompt Formatting ──────────────────────────────────────────────────────────
 
-def generate_batch(llm, tokenizer, items: list[dict], prompt_variant: str,
-                   temperature: float, do_sample: bool) -> list[str]:
+def format_prompts(tokenizer, items: list[dict], prompt_variant: str) -> list[str]:
     prompt_texts = []
     for item in items:
         sys_p, usr_p = build_prompt(item["question"], item.get("options"), prompt_variant)
@@ -218,40 +210,11 @@ def generate_batch(llm, tokenizer, items: list[dict], prompt_variant: str,
                 thinking_budget=THINKING_BUDGET,
             )
         )
-    inputs = tokenizer(
-        prompt_texts,
-        return_tensors="pt",
-        padding=True,
-        truncation=True,
-        max_length=8192,
-    ).to(llm.device)
-
-    gen_kwargs = dict(
-        max_new_tokens=MAX_TOKENS,
-        top_p=0.95,
-        top_k=20,
-        repetition_penalty=1.0,
-        pad_token_id=tokenizer.eos_token_id,
-    )
-    if do_sample:
-        gen_kwargs.update(do_sample=True, temperature=temperature)
-    else:
-        gen_kwargs["do_sample"] = False  # greedy
-
-    with torch.no_grad():
-        output_ids = llm.generate(**inputs, **gen_kwargs)
-
-    input_len = inputs["input_ids"].shape[1]
-    responses = []
-    for i in range(len(items)):
-        new_tokens = output_ids[i][input_len:]
-        responses.append(tokenizer.decode(new_tokens, skip_special_tokens=True).strip())
-    return responses
+    return prompt_texts
 
 # ── Experiment Runners ─────────────────────────────────────────────────────────
 
 def _load_done_ids(path: Path) -> set[int]:
-    """Return set of question IDs already written to a result file."""
     done = set()
     if path.exists():
         for line in open(path):
@@ -271,15 +234,13 @@ def _summary_row_from_file(path: Path, label: str) -> dict:
 
 
 def run_temp_sweep(llm, tokenizer, data: list, prompt_variant: str,
-                   judger, out_dir: Path, batch_size: int) -> list[dict]:
-    """Single-sample at each temperature; resumes from partial output if present."""
+                   judger, out_dir: Path, max_tokens: int) -> list[dict]:
     print(f"\n{'─'*60}")
     print(f"  Experiment : temp_sweep  Temperatures: {TEMP_SWEEP_VALUES}")
     print(f"{'─'*60}")
 
     summary_rows = []
     for temp in TEMP_SWEEP_VALUES:
-        do_sample = temp > 0.0
         out_path  = out_dir / f"model2_temp{str(temp).replace('.', 'p')}_results.jsonl"
         done_ids  = _load_done_ids(out_path)
         remaining = [d for d in data if d["id"] not in done_ids]
@@ -287,12 +248,22 @@ def run_temp_sweep(llm, tokenizer, data: list, prompt_variant: str,
         if done_ids:
             print(f"  T={temp}: resuming — {len(done_ids)} done, {len(remaining)} remaining")
 
+        sampling_params = SamplingParams(
+            max_tokens=max_tokens,
+            temperature=temp,
+            top_p=0.95,
+            top_k=20 if temp > 0 else -1,
+            repetition_penalty=1.0,
+        )
+
         with open(out_path, "a") as f_out:
             with tqdm(total=len(remaining), desc=f"  T={temp}") as pbar:
-                for batch_start in range(0, len(remaining), batch_size):
-                    batch = remaining[batch_start : batch_start + batch_size]
-                    responses = generate_batch(llm, tokenizer, batch, prompt_variant, temp, do_sample)
-                    for item, response in zip(batch, responses):
+                for chunk_start in range(0, len(remaining), _CHUNK_SIZE):
+                    chunk = remaining[chunk_start : chunk_start + _CHUNK_SIZE]
+                    prompt_texts = format_prompts(tokenizer, chunk, prompt_variant)
+                    outputs = llm.generate(prompt_texts, sampling_params)
+                    for item, output in zip(chunk, outputs):
+                        response = output.outputs[0].text.strip()
                         record = {
                             "id":          item["id"],
                             "experiment":  "temp_sweep",
@@ -306,10 +277,10 @@ def run_temp_sweep(llm, tokenizer, data: list, prompt_variant: str,
                             "correct":     score_single(item, response, judger),
                         }
                         f_out.write(json.dumps(record) + "\n")
-                    pbar.update(len(batch))
+                    pbar.update(len(chunk))
                     f_out.flush()
 
-        label = f"T={temp}" + (" (greedy)" if not do_sample else "")
+        label = f"T={temp}" + (" (greedy)" if temp == 0.0 else "")
         row   = _summary_row_from_file(out_path, label)
         print(f"  {label}: MCQ={row['mcq_acc']:.2f}%  Free={row['free_acc']:.2f}%"
               f"  Overall={row['total_acc']:.2f}%  → {out_path}")
@@ -319,8 +290,7 @@ def run_temp_sweep(llm, tokenizer, data: list, prompt_variant: str,
 
 
 def run_voting(n_samples: int, llm, tokenizer, data: list, prompt_variant: str,
-               judger, out_dir: Path, batch_size: int) -> dict:
-    """N-sample majority voting; resumes from partial output if present."""
+               judger, out_dir: Path, max_tokens: int) -> dict:
     exp_name = f"voting_n{n_samples}"
     out_path = out_dir / f"model2_{exp_name}_results.jsonl"
     done_ids = _load_done_ids(out_path)
@@ -332,23 +302,29 @@ def run_voting(n_samples: int, llm, tokenizer, data: list, prompt_variant: str,
         print(f"  Resuming: {len(done_ids)} done, {len(remaining)} remaining")
     print(f"{'─'*60}")
 
+    # n=n_samples tells vLLM to produce N independent completions per prompt in one pass
+    sampling_params = SamplingParams(
+        n=n_samples,
+        max_tokens=max_tokens,
+        temperature=VOTING_TEMPERATURE,
+        top_p=0.95,
+        top_k=20,
+        repetition_penalty=1.0,
+    )
+
     with open(out_path, "a") as f_out:
         with tqdm(total=len(remaining), desc=f"  {exp_name}") as pbar:
-            for batch_start in range(0, len(remaining), batch_size):
-                batch = remaining[batch_start : batch_start + batch_size]
-                # n_samples rounds of batched generation; all_responses[i] holds n_samples strings for batch[i]
-                all_responses = [[] for _ in batch]
-                for _ in range(n_samples):
-                    round_resps = generate_batch(llm, tokenizer, batch, prompt_variant,
-                                                 VOTING_TEMPERATURE, True)
-                    for i, r in enumerate(round_resps):
-                        all_responses[i].append(r)
-                for item, responses in zip(batch, all_responses):
-                    is_mcq  = bool(item.get("options"))
-                    voted   = majority_vote_mcq(responses) if is_mcq else majority_vote_free(responses, judger)
-                    agree   = agreement_rate(responses, voted, item, judger)
-                    correct = score_voted(item, voted, judger)
-                    record  = {
+            for chunk_start in range(0, len(remaining), _CHUNK_SIZE):
+                chunk = remaining[chunk_start : chunk_start + _CHUNK_SIZE]
+                prompt_texts = format_prompts(tokenizer, chunk, prompt_variant)
+                outputs = llm.generate(prompt_texts, sampling_params)
+                for item, output in zip(chunk, outputs):
+                    responses = [o.text.strip() for o in output.outputs]
+                    is_mcq    = bool(item.get("options"))
+                    voted     = majority_vote_mcq(responses) if is_mcq else majority_vote_free(responses, judger)
+                    agree     = agreement_rate(responses, voted, item, judger)
+                    correct   = score_voted(item, voted, judger)
+                    record    = {
                         "id":          item["id"],
                         "experiment":  exp_name,
                         "n_samples":   n_samples,
@@ -361,7 +337,7 @@ def run_voting(n_samples: int, llm, tokenizer, data: list, prompt_variant: str,
                         "correct":     correct,
                     }
                     f_out.write(json.dumps(record) + "\n")
-                pbar.update(len(batch))
+                pbar.update(len(chunk))
                 f_out.flush()
 
     results   = [json.loads(l) for l in open(out_path)]
@@ -386,7 +362,6 @@ def run_voting(n_samples: int, llm, tokenizer, data: list, prompt_variant: str,
 # ── Entry Point ────────────────────────────────────────────────────────────────
 
 def main():
-    global MAX_TOKENS
     parser = argparse.ArgumentParser(
         description="Model 2: Sampling Parameters & Majority Voting — CSE 151B"
     )
@@ -403,13 +378,9 @@ def main():
     parser.add_argument("--prompt", default="v1_enhanced_cot",
                         choices=list(SYSTEM_PROMPTS),
                         help="Prompt variant from Model 1 (default: v1_enhanced_cot)")
-    parser.add_argument("--batch_size", type=int, default=2,
-                        help="Number of prompts per GPU call (default: 2, tuned for A30 24 GB). "
-                             "Reduce to 1 if you get CUDA OOM errors; increase to 4 on A100 40 GB.")
     args = parser.parse_args()
 
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
-    MAX_TOKENS = args.max_tokens
 
     data = [json.loads(line) for line in open(args.data)]
     if args.limit:
@@ -418,23 +389,17 @@ def main():
     print(f"Dataset : {args.data}")
     print(f"Questions: {len(data)}  ({n_mcq} MCQ, {len(data)-n_mcq} free-form)")
     print(f"Prompt  : {args.prompt}")
-    print(f"Batch size: {args.batch_size}")
 
-    print(f"\nLoading {MODEL_ID} (4-bit BnB quantization)...")
+    print(f"\nLoading tokenizer for {MODEL_ID}...")
     tokenizer = AutoTokenizer.from_pretrained(MODEL_ID, trust_remote_code=True)
-    tokenizer.pad_token = tokenizer.eos_token
-    tokenizer.padding_side = "left"
 
-    bnb_config = BitsAndBytesConfig(
-        load_in_4bit=True,
-        bnb_4bit_compute_dtype=torch.bfloat16,
-        bnb_4bit_use_double_quant=True,
-    )
-    llm = AutoModelForCausalLM.from_pretrained(
-        MODEL_ID,
+    print(f"Loading {MODEL_ID} with vLLM (bfloat16)...")
+    llm = LLM(
+        model=MODEL_ID,
+        max_model_len=8192,
+        gpu_memory_utilization=0.9,
+        dtype="bfloat16",
         trust_remote_code=True,
-        quantization_config=bnb_config,
-        device_map="auto",
     )
     print("Model loaded.\n")
 
@@ -456,10 +421,12 @@ def main():
 
     for exp in experiments:
         if exp == "temp_sweep":
-            temp_rows = run_temp_sweep(llm, tokenizer, data, args.prompt, judger, out_dir, args.batch_size)
+            temp_rows = run_temp_sweep(llm, tokenizer, data, args.prompt, judger,
+                                       out_dir, args.max_tokens)
         else:
             n = int(exp.replace("voting_n", ""))
-            voting_rows.append(run_voting(n, llm, tokenizer, data, args.prompt, judger, out_dir, args.batch_size))
+            voting_rows.append(run_voting(n, llm, tokenizer, data, args.prompt, judger,
+                                          out_dir, args.max_tokens))
 
     # Print final summary table
     W = 72

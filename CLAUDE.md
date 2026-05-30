@@ -24,15 +24,15 @@ export HF_HOME=/datasets/$USER/hf_cache  # avoids home dir disk quota during tra
 
 ### Running experiments
 ```bash
-# Smoke tests (~5 min total)
+# Smoke tests (~2 min total)
 python model1_prompt_engineering.py --variant v0_baseline --limit 5 --max_tokens 2048
 python model2_sampling_voting.py --experiment voting_n3 --limit 5 --max_tokens 2048
 python model3_finetune_train.py --max_steps 5 --subset 50
 python model3_finetune_infer.py --checkpoint checkpoints/model3_qlora --limit 5 --max_tokens 4096
 
-# Model 1 — all 4 prompt variants (~50 min)
+# Model 1 — all 4 prompt variants (~40 min on A30)
 python model1_prompt_engineering.py --variant all
-python model1_prompt_engineering.py --variant v2_fewshot  # single variant
+python model1_prompt_engineering.py --variant v2_fewshot  # single variant (~10 min)
 
 # Model 2 — temperature sweep or majority voting
 python model2_sampling_voting.py --experiment temp_sweep
@@ -66,15 +66,15 @@ python model3_finetune_infer.py --checkpoint checkpoints/model3_qlora --data dat
 - **`utils.py`** — constants and helper functions used by `judger.py`: LaTeX stripping, boxed extraction (`last_boxed_only_string`, `remove_boxed`), fraction/sqrt normalization.
 
 ### Model scripts
-All three models load Qwen3-4B-Thinking-2507 in 4-bit (NF4) quantization via BitsAndBytes. The model outputs `<think>...</think>` reasoning before the final answer; the judger strips everything before `</think>` and looks for `\boxed{}`.
+The model outputs `<think>...</think>` reasoning before the final answer; the judger strips everything before `</think>` and looks for `\boxed{}`.
 
-- **`model1_prompt_engineering.py`** — 4 prompt variants (v0 baseline, v1 enhanced CoT, v2 few-shot, v3 self-verification). Sampling is fixed across all variants (`T=0.6, top_p=0.95, top_k=20`). Processes questions in batches (`--batch_size 2` default). Writes `results/model1_<variant>_results.jsonl`.
+- **`model1_prompt_engineering.py`** — 4 prompt variants (v0 baseline, v1 enhanced CoT, v2 few-shot, v3 self-verification). Uses **vLLM** (bfloat16, no quantization) for inference. Sampling fixed across all variants (`T=0.6, top_p=0.95, top_k=20`, `thinking_budget=3072`, `max_tokens=4096`). Flushes results every 50 questions for resume support. Writes `results/model1_<variant>_results.jsonl`.
 
-- **`model2_sampling_voting.py`** — Temperature sweep (T=0.0–0.9) and majority voting (N=3,5,7 at T=0.7). Voting extracts `\boxed{}` from each sample, normalizes via `judger.norm_ans_str()`, and takes the modal answer. Processes questions in batches (`--batch_size 2` default); voting runs N generation rounds per batch. Writes `results/model2_<experiment>_results.jsonl`.
+- **`model2_sampling_voting.py`** — Temperature sweep (T=0.0–0.9) and majority voting (N=3,5,7 at T=0.7). Uses **vLLM** with `SamplingParams(n=N)` so all N voting samples are generated in a single engine call per chunk (much faster than N sequential calls). Voting extracts `\boxed{}` from each sample, normalizes via `judger.norm_ans_str()`, and takes the modal answer. Writes `results/model2_<experiment>_results.jsonl`.
 
-- **`model3_finetune_train.py`** — QLoRA fine-tuning on `lighteval/MATH` (7,500 problems). Frozen 4-bit base + trainable LoRA adapters (rank=16, alpha=32) on attention + FFN layers. Uses `paged_adamw_8bit`, lr=2e-4, cosine schedule, effective batch=8, 3 epochs. Training samples are formatted with the MATH solution inside `<think>...</think>` and the `\boxed{}` answer outside, matching the model's inference-time output format. Loss is computed on the full sequence (TRL 1.4.0 removed `DataCollatorForCompletionOnlyLM`). Max sequence length: 16384. Saves to `checkpoints/model3_qlora/`.
+- **`model3_finetune_train.py`** — QLoRA fine-tuning on `lighteval/MATH` (7,500 problems). Frozen 4-bit base (BitsAndBytes NF4) + trainable LoRA adapters (rank=16, alpha=32) on attention + FFN layers. Uses `paged_adamw_8bit`, lr=2e-4, cosine schedule, effective batch=8, 3 epochs. Training samples are formatted with the MATH solution inside `<think>...</think>` and the `\boxed{}` answer outside, matching the model's inference-time output format. Loss is computed on the full sequence (TRL 1.4.0 removed `DataCollatorForCompletionOnlyLM`). Max sequence length: 16384. Saves to `checkpoints/model3_qlora/`.
 
-- **`model3_finetune_infer.py`** — Loads base model + LoRA adapter from checkpoint, runs inference on public or private set. Uses `enable_thinking=True` in `apply_chat_template` to activate the model's thinking mode. Max new tokens: 16384. Processes questions in batches (`--batch_size 2` default, tuned for A30 24 GB; use `--batch_size 1` if OOM). Writes `.jsonl` results and `results/model3_submission.csv` for Kaggle.
+- **`model3_finetune_infer.py`** — Loads base model with **vLLM** (bfloat16) + LoRA adapter via `LoRARequest`. Falls back to base model if no `adapter_config.json` is found. Uses `enable_thinking=True` in `apply_chat_template`. `max_tokens=4096` default (`thinking_budget=3072` + answer). Flushes every 50 questions. Writes `.jsonl` results and `results/model3_submission.csv` for Kaggle.
 
 ### Result file format
 All `.jsonl` files in `results/` have one JSON object per line with fields: `id`, `is_mcq`, `gold`, `response` (or `responses` for voting), `correct`. Voting records also have `voted`, `agreement`, `n_samples`.

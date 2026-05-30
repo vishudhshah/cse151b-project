@@ -25,10 +25,10 @@ Output
   results/model1_{variant}_results.jsonl  — per-question records
   Printed summary table comparing all variants
 
-Runtime estimate (A100 40 GB)
-------------------------------
-  ~12 min / variant on full 1126-question public set
-  ~3 s   / variant on --limit 5 (smoke test)
+Runtime estimate (A30 24 GB, vLLM, bfloat16)
+---------------------------------------------
+  ~10 min / variant on full 1126-question public set
+  ~1 min  / variant on --limit 5 (smoke test)
 """
 
 import argparse
@@ -39,29 +39,24 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-import torch
 from tqdm import tqdm
-from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+from transformers import AutoTokenizer
+from vllm import LLM, SamplingParams
 
 # ── Configuration ──────────────────────────────────────────────────────────────
 
 MODEL_ID   = "Qwen/Qwen3-4B-Thinking-2507"
 DATA_PATH  = "data/public.jsonl"
-MAX_TOKENS = 16384
-# Cap the thinking block to avoid the model spending 15k tokens on reasoning for
-# routine problems. The remaining tokens go to the answer. Empirically 3072
-# thinking tokens covers multi-step math while keeping wall-clock time sane on
-# an A30 (~90-140 s/batch vs ~570 s/batch with an uncapped thinking chain).
+MAX_TOKENS = 4096
+# Cap the thinking block. Remaining tokens go to the answer.
 THINKING_BUDGET = 3072
 
 # Sampling kept identical across all variants to isolate prompt effect.
-SAMPLING_PARAMS = dict(
-    max_new_tokens=MAX_TOKENS,
+_SAMPLING_KWARGS = dict(
     temperature=0.6,
     top_p=0.95,
     top_k=20,
     repetition_penalty=1.0,
-    do_sample=True,
 )
 
 # ── Prompt Definitions ─────────────────────────────────────────────────────────
@@ -239,7 +234,7 @@ def score_response(item: dict, response: str, judger) -> bool:
 
 # ── Inference ─────────────────────────────────────────────────────────────────
 
-def generate_batch(llm, tokenizer, items: list[dict], cfg: dict) -> list[str]:
+def _format_prompts(tokenizer, items: list[dict], cfg: dict) -> list[str]:
     prompt_texts = []
     for item in items:
         sys_p, usr_p = build_prompt(item["question"], item.get("options"), cfg)
@@ -253,30 +248,21 @@ def generate_batch(llm, tokenizer, items: list[dict], cfg: dict) -> list[str]:
                 thinking_budget=THINKING_BUDGET,
             )
         )
-    inputs = tokenizer(
-        prompt_texts,
-        return_tensors="pt",
-        padding=True,
-        truncation=True,
-        max_length=8192,
-    ).to(llm.device)
-    with torch.no_grad():
-        output_ids = llm.generate(
-            **inputs,
-            **SAMPLING_PARAMS,
-            pad_token_id=tokenizer.eos_token_id,
-        )
-    input_len = inputs["input_ids"].shape[1]
-    responses = []
-    for i in range(len(items)):
-        new_tokens = output_ids[i][input_len:]
-        responses.append(tokenizer.decode(new_tokens, skip_special_tokens=True).strip())
-    return responses
+    return prompt_texts
+
+
+def generate_chunk(llm, tokenizer, items: list[dict], cfg: dict,
+                   sampling_params: SamplingParams) -> list[str]:
+    prompt_texts = _format_prompts(tokenizer, items, cfg)
+    outputs = llm.generate(prompt_texts, sampling_params)
+    return [o.outputs[0].text.strip() for o in outputs]
 
 # ── Per-Variant Runner ─────────────────────────────────────────────────────────
 
-def run_variant(variant: str, llm, tokenizer, data: list, judger, out_dir: Path,
-                batch_size: int) -> dict:
+_CHUNK_SIZE = 50  # flush results to disk every N questions
+
+def run_variant(variant: str, llm, tokenizer, sampling_params: SamplingParams,
+                data: list, judger, out_dir: Path) -> dict:
     cfg      = VARIANTS[variant]
     out_path = out_dir / f"model1_{variant}_results.jsonl"
 
@@ -297,13 +283,12 @@ def run_variant(variant: str, llm, tokenizer, data: list, judger, out_dir: Path,
         print(f"  Resuming: {len(done_ids)} already done, {len(remaining)} remaining")
     print(f"{'─'*60}")
 
-    # Append new results after each batch; progress bar tracks individual questions
     with open(out_path, "a") as f_out:
         with tqdm(total=len(remaining), desc=f"  {variant}") as pbar:
-            for batch_start in range(0, len(remaining), batch_size):
-                batch = remaining[batch_start : batch_start + batch_size]
-                responses = generate_batch(llm, tokenizer, batch, cfg)
-                for item, response in zip(batch, responses):
+            for chunk_start in range(0, len(remaining), _CHUNK_SIZE):
+                chunk = remaining[chunk_start : chunk_start + _CHUNK_SIZE]
+                responses = generate_chunk(llm, tokenizer, chunk, cfg, sampling_params)
+                for item, response in zip(chunk, responses):
                     record = {
                         "id":       item["id"],
                         "variant":  variant,
@@ -313,7 +298,7 @@ def run_variant(variant: str, llm, tokenizer, data: list, judger, out_dir: Path,
                         "correct":  score_response(item, response, judger),
                     }
                     f_out.write(json.dumps(record) + "\n")
-                pbar.update(len(batch))
+                pbar.update(len(chunk))
                 f_out.flush()
 
     # Read all results (existing + just written) for reporting
@@ -353,16 +338,12 @@ def main():
                         help="Only evaluate on first N questions")
     parser.add_argument("--max_tokens", type=int, default=MAX_TOKENS,
                         help=f"Max new tokens per response (default: {MAX_TOKENS}). "
-                             "Use 4096 for full runs on A30; 2048 for smoke tests.")
+                             "Use 2048 for smoke tests.")
     parser.add_argument("--gpu", default="0", help="CUDA_VISIBLE_DEVICES (default: 0)")
     parser.add_argument("--data", default=DATA_PATH, help="Path to JSONL dataset")
-    parser.add_argument("--batch_size", type=int, default=2,
-                        help="Number of prompts per GPU call (default: 2, tuned for A30 24 GB). "
-                             "Reduce to 1 if you get CUDA OOM errors; increase to 4 on A100 40 GB.")
     args = parser.parse_args()
 
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
-    SAMPLING_PARAMS["max_new_tokens"] = args.max_tokens
 
     # Load dataset
     data = [json.loads(line) for line in open(args.data)]
@@ -370,28 +351,28 @@ def main():
         data = data[: args.limit]
     n_mcq  = sum(bool(d.get("options")) for d in data)
     n_free = len(data) - n_mcq
-    print(f"Dataset : {args.data}")
+    print(f"Dataset  : {args.data}")
     print(f"Questions: {len(data)}  ({n_mcq} MCQ, {n_free} free-form)")
-    print(f"Batch size: {args.batch_size}")
 
-    # Load model
-    print(f"\nLoading {MODEL_ID} (4-bit BnB quantization)...")
+    # Load tokenizer (for chat template formatting only)
+    print(f"\nLoading tokenizer for {MODEL_ID}...")
     tokenizer = AutoTokenizer.from_pretrained(MODEL_ID, trust_remote_code=True)
-    tokenizer.pad_token = tokenizer.eos_token
-    tokenizer.padding_side = "left"
 
-    bnb_config = BitsAndBytesConfig(
-        load_in_4bit=True,
-        bnb_4bit_compute_dtype=torch.bfloat16,
-        bnb_4bit_use_double_quant=True,
-    )
-    llm = AutoModelForCausalLM.from_pretrained(
-        MODEL_ID,
+    # Load model with vLLM — bfloat16, no quantization needed for 4B on 24 GB+
+    print(f"Loading {MODEL_ID} with vLLM (bfloat16)...")
+    llm = LLM(
+        model=MODEL_ID,
+        max_model_len=8192,
+        gpu_memory_utilization=0.9,
+        dtype="bfloat16",
         trust_remote_code=True,
-        quantization_config=bnb_config,
-        device_map="auto",
     )
     print("Model loaded.\n")
+
+    sampling_params = SamplingParams(
+        max_tokens=args.max_tokens,
+        **_SAMPLING_KWARGS,
+    )
 
     # Load judger
     sys.path.insert(0, str(Path(__file__).parent))
@@ -402,7 +383,10 @@ def main():
     out_dir.mkdir(exist_ok=True)
 
     variants_to_run = list(VARIANTS) if args.variant == "all" else [args.variant]
-    summary = [run_variant(v, llm, tokenizer, data, judger, out_dir, args.batch_size) for v in variants_to_run]
+    summary = [
+        run_variant(v, llm, tokenizer, sampling_params, data, judger, out_dir)
+        for v in variants_to_run
+    ]
 
     # Summary table
     W = 72
