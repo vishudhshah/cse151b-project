@@ -2,7 +2,7 @@
 # Everything else (torch 2.11+cu128, transformers, accelerate, datasets, sympy, numpy,
 # tqdm, torchaudio, torchvision) is already in the image and inherited via --system-site-packages.
 
-vllm>=0.6.0,<0.7.0              # fast inference for model1/model2/model3-infer; <0.7.0 targets CUDA 12.x (DataHub)
+vllm                            # fast inference for model1/model2/model3-infer (PagedAttention, continuous batching)
 bitsandbytes>=0.46.1            # >=0.46.1 required on Python 3.13; used by model3 (QLoRA training + inference)
 antlr4-python3-runtime==4.11.1  # exact version required by sympy.parsing.latex
 peft>=0.10.0
