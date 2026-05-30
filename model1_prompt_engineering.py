@@ -330,9 +330,11 @@ def run_variant(variant: str, llm, tokenizer, sampling_params: SamplingParams,
         "free_acc":  acc(free_res),
         "total_acc": acc(results),
     }
-    print(f"  MCQ       : {sum(r['correct'] for r in mcq_res):4d}/{row['n_mcq']:4d} ({row['mcq_acc']:.2f}%)")
-    print(f"  Free-form : {sum(r['correct'] for r in free_res):4d}/{row['n_free']:4d} ({row['free_acc']:.2f}%)")
-    print(f"  Overall   : {sum(r['correct'] for r in results):4d}/{row['n_total']:4d} ({row['total_acc']:.2f}%)")
+    scored = lambda s: [r for r in s if r["correct"] is not None]
+    fmt = lambda s: f"{sum(r['correct'] for r in scored(s)):4d}/{len(s):4d}" if scored(s) else f"   —/{len(s):4d}"
+    print(f"  MCQ       : {fmt(mcq_res)} ({row['mcq_acc']:.2f}%)")
+    print(f"  Free-form : {fmt(free_res)} ({row['free_acc']:.2f}%)")
+    print(f"  Overall   : {fmt(results)} ({row['total_acc']:.2f}%)")
     print(f"  Saved to  : {out_path}")
     return row
 
