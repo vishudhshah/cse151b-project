@@ -196,11 +196,22 @@ echo "Training PID: $!"
 ls checkpoints/model3_qlora/adapter_model.safetensors  # confirm training done
 nohup python model3_finetune_infer.py --checkpoint checkpoints/model3_qlora > logs/model3_infer.log 2>&1 &
 
-# ── Step 2: Model 1 — baseline variant only ───────────────────────────────────
-nohup python model1_prompt_engineering.py --variant v0_baseline > logs/model1.log 2>&1 &
+# ── Step 2: Model 1 — best variant (v2_fewshot) on public set ────────────────
+nohup python model1_prompt_engineering.py --variant v2_fewshot > logs/model1_v2.log 2>&1 &
 echo "Model 1 PID: $!"
 
-# ── Step 3: Model 2 — majority voting N=3 (fastest experiment) ────────────────
+# ── Step 3: Model 1 — private set (for Kaggle submission) ─────────────────────
+# Run after public set finishes (resume-safe; uses separate output file)
+nohup python model1_prompt_engineering.py --variant v2_fewshot --data data/private.jsonl \
+    > logs/model1_v2_private.log 2>&1 &
+
+# ── Step 4: Generate submission CSV ───────────────────────────────────────────
+# After private inference finishes:
+python model1_to_submission.py \
+    --input results/model1_v2_fewshot_private_results.jsonl \
+    --output results/model1_v2_private_submission.csv
+
+# ── Step 5 (optional): Model 2 ────────────────────────────────────────────────
 nohup python model2_sampling_voting.py --experiment voting_n3 > logs/model2_vote3.log 2>&1 &
 ```
 
@@ -222,14 +233,18 @@ kubectl delete pod <pod-name>        # manually terminate a pod when done
 | Step | Est. time |
 |------|-----------|
 | Model 3 — training (3 epochs) | ~10 hours |
-| Model 1 — one variant | ~10 min |
-| Model 1 — all 4 variants | ~40 min |
+| Model 1 — one variant (full 1,126 questions) | ~10 min |
+| Model 1 — all 5 variants | ~50 min |
+| Model 1 — private set (943 questions) | ~4 hours* |
+| Model 1 — rerun cutoffs (~239 questions) | ~5 min |
 | Model 2 — voting N=3 | ~15 min |
 | Model 2 — voting N=5 | ~25 min |
 | Model 2 — temp sweep (5 temps) | ~15 min |
 | Model 3 — inference | ~10 min |
 
-> All inference scripts use vLLM (PagedAttention, continuous batching) with `thinking_budget=3072` and `max_tokens=4096`. Model 2 voting generates all N samples in a single engine call via `SamplingParams(n=N)`.
+\* Private set inference is slower because `max_tokens=7168` allows much longer thinking — observed ~22 min/chunk of 50 on A30, ~6 hours total. On H100 MIG slice it ran slower still; on full A30 it's ~4 hours.
+
+> All model1 inference uses vLLM (PagedAttention, continuous batching) with `thinking_budget=6144` and `max_tokens=7168`. Earlier runs used `max_tokens=4096` which caused ~65% of responses to be cut off mid-think.
 
 ---
 

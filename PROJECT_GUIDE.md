@@ -58,6 +58,9 @@ Project/
 │   ├── model1_v1_enhanced_cot_results.jsonl
 │   ├── model1_v2_fewshot_results.jsonl
 │   ├── model1_v3_verification_results.jsonl
+│   ├── model1_v4_fewshot_verify_results.jsonl
+│   ├── model1_v2_fewshot_private_results.jsonl   # Private set inference
+│   ├── model1_v2_fewshot_private_submission.csv  # Kaggle submission (v2, best)
 │   ├── model2_temp0p0_results.jsonl      # Greedy decode
 │   ├── model2_temp0p3_results.jsonl
 │   ├── model2_temp0p5_results.jsonl
@@ -85,7 +88,9 @@ Project/
 ├── judger.py                            # Scoring engine — do not modify
 ├── utils.py                             # Math normalization helpers
 │
-├── model1_prompt_engineering.py         # Prompt engineering experiments
+├── model1_prompt_engineering.py         # Prompt engineering experiments (5 variants)
+├── model1_to_submission.py             # Convert model1 results JSONL → Kaggle CSV
+├── model1_rerun_cutoffs.py             # Two-pass: rerun cut-off responses with short budget
 ├── model2_sampling_voting.py            # Sampling parameter experiments
 ├── model3_finetune_train.py             # Fine-tuning training script
 ├── model3_finetune_infer.py             # Fine-tuning inference + submission CSV
@@ -212,7 +217,11 @@ Test whether better-crafted system prompts improve accuracy without changing any
 
 ### Design
 
-All 4 variants share identical model weights and sampling parameters (`T=0.6, top_p=0.95, top_k=20`). Any accuracy difference is attributable to the prompt alone.
+All 5 variants share identical model weights and sampling parameters (`T=0.6, top_p=0.95, top_k=20`). Any accuracy difference is attributable to the prompt alone.
+
+**Inference engine**: All model1 variants use **vLLM** (bfloat16, no quantization) rather than HuggingFace `generate`. This gives ~6–8× speedup: 100-question smoke tests that took ~1 hour with HF now take ~20 min with vLLM; the full 1,126-question set runs in ~10 min per variant.
+
+**Token limits**: `max_tokens=7168`, `thinking_budget=6144`. Earlier runs used `max_tokens=4096`, which caused ~65% of responses to be cut off mid-think (the model never produced `\boxed{}`). Raising the limit dropped the cutoff rate to ~25% on hard problems. A two-pass script (`model1_rerun_cutoffs.py`) patches remaining cutoffs by rerunning them with a short `thinking_budget=512` to force a completed answer.
 
 ### Variants
 
@@ -247,6 +256,24 @@ Prepends two worked examples to the user turn (not as separate chat messages —
 System prompt explicitly instructs the model to solve, then verify (by substituting back, checking edge cases, or re-deriving), then correct if needed before writing the final answer.
 **Hypothesis**: Verification catches arithmetic errors that CoT alone does not.
 
+#### v4 — Few-shot + Verification
+Combines v2 and v3: v3's solve-then-verify system prompt with v2's worked examples prepended to the user turn.
+**Hypothesis**: The two improvements are additive. In practice, v4 did not outperform v2 — the verification step appears to introduce second-guessing on MCQ where the few-shot examples already anchor the format well, and free-form accuracy was no better than v2. v4 was not used for final submission.
+
+### Smoke test results (100 questions, public set)
+
+These were run with `max_tokens=4096` (old limit), causing ~65% cutoff rate on harder problems — so the numbers below are lower than the true accuracy. Use as relative comparisons only; v2 is the clear winner.
+
+| Variant | MCQ | Free-form | Overall |
+|---------|-----|-----------|---------|
+| v0 baseline | 18.4% | 37.1% | 30.0% |
+| v1 enhanced CoT | 10.5% | 38.7% | 28.0% |
+| **v2 few-shot** | **36.8%** | **38.7%** | **38.0%** |
+| v3 verification | 26.3% | 41.9% | 36.0% |
+| v4 few-shot + verify | 23.7% | 38.7% | 33.0% |
+
+**v2 submitted to Kaggle scored 0.611** (with `max_tokens=7168`). Earlier submission with `max_tokens=4096` scored 0.487 — the token limit increase alone added +0.124.
+
 ### Output files
 
 ```
@@ -254,6 +281,8 @@ results/model1_v0_baseline_results.jsonl
 results/model1_v1_enhanced_cot_results.jsonl
 results/model1_v2_fewshot_results.jsonl
 results/model1_v3_verification_results.jsonl
+results/model1_v4_fewshot_verify_results.jsonl
+results/model1_v2_fewshot_private_results.jsonl   # private set (for submission)
 ```
 
 Each line is a JSON record:
@@ -274,11 +303,22 @@ Each line is a JSON record:
 # Smoke test (first 20 questions, one variant)
 python model1_prompt_engineering.py --variant v0_baseline --limit 20
 
-# Full run, all 4 variants on complete public set
+# Full run, all 5 variants on complete public set
 python model1_prompt_engineering.py --variant all
 
 # Single variant
 python model1_prompt_engineering.py --variant v2_fewshot
+
+# Private set inference (output goes to results/model1_v2_fewshot_private_results.jsonl)
+python model1_prompt_engineering.py --variant v2_fewshot --data data/private.jsonl
+
+# Patch cut-off responses with short thinking budget
+python model1_rerun_cutoffs.py --results results/model1_v2_fewshot_private_results.jsonl \
+    --data data/private.jsonl --variant v2_fewshot
+
+# Convert results to Kaggle submission CSV
+python model1_to_submission.py --input results/model1_v2_fewshot_private_results.jsonl \
+    --output results/model1_v2_private_submission.csv
 ```
 
 ### Summary table (printed at end of run)
@@ -293,6 +333,7 @@ python model1_prompt_engineering.py --variant v2_fewshot
   v1_enhanced_cot      XX.XX%      XX.XX%     XX.XX%
   v2_fewshot           XX.XX%      XX.XX%     XX.XX%
   v3_verification      XX.XX%      XX.XX%     XX.XX%
+  v4_fewshot_verify    XX.XX%      XX.XX%     XX.XX%
 ========================================================================
 ```
 
@@ -301,6 +342,8 @@ python model1_prompt_engineering.py --variant v2_fewshot
 ## 7. Model 2 — Sampling & Majority Voting
 
 **File**: `model2_sampling_voting.py`
+
+> **Status**: Full runs on the public set yielded ~20% overall accuracy — significantly below model1's results. Model 2 was not pursued further for the final submission. The scripts and results are retained for the milestone report comparison table.
 
 ### Goal
 
@@ -394,6 +437,8 @@ python model2_sampling_voting.py --experiment voting_n3 --limit 50
 ## 8. Model 3 — QLoRA Fine-Tuning
 
 **Files**: `model3_finetune_train.py` (training) · `model3_finetune_infer.py` (inference)
+
+> **Status**: Full training (~10 hours) and inference completed, but overall accuracy on the public set was ~20% — significantly below model1. Model 3 was not pursued further for the final submission. Scripts and results are retained for the milestone report.
 
 ### Goal
 
@@ -650,7 +695,7 @@ Evaluation: unified accuracy (correct/total, each question weighted equally).
 > The baseline runs Qwen3-4B-Thinking-2507 with INT4 quantization (BitsAndBytes NF4), generic system prompts, and sampling parameters `T=0.6, top_p=0.95, top_k=20`.
 
 **Model 1 — Prompt Engineering**: *(~2 paragraphs)*
-> We test 4 prompt variants while holding all other factors constant. v0 is the baseline. v1 adds explicit numbered CoT steps. v2 prepends 2 worked examples per question type. v3 instructs the model to verify its answer before committing.
+> We test 5 prompt variants while holding all other factors constant (same model, same vLLM inference engine at bfloat16, same sampling parameters). v0 is the baseline. v1 adds explicit numbered CoT steps. v2 prepends 2 worked examples per question type. v3 instructs the model to verify its answer before committing. v4 combines v2 and v3 but did not improve over v2 alone. All inference uses vLLM with `max_tokens=7168` and `thinking_budget=6144`; an earlier run at `max_tokens=4096` cut off ~65% of responses mid-think, artificially deflating accuracy.
 
 **Model 2 — Sampling & Voting**: *(~2 paragraphs)*
 > We sweep temperature from 0.0 (greedy) to 0.9 to identify the optimal single-sample regime. We then apply self-consistency [cite Wang 2023] with N=3, 5, 7 samples at T=0.7: multiple independent responses are generated and the modal answer is selected.
@@ -700,6 +745,7 @@ Baseline (starter code)      & XX.XX\% & XX.XX\% & XX.XX\% \\
 Prompt Eng. — v1 Enhanced CoT & XX.XX\% & XX.XX\% & XX.XX\% \\
 Prompt Eng. — v2 Few-shot     & XX.XX\% & XX.XX\% & XX.XX\% \\
 Prompt Eng. — v3 Verification & XX.XX\% & XX.XX\% & XX.XX\% \\
+Prompt Eng. — v4 Few-shot+Verify & XX.XX\% & XX.XX\% & XX.XX\% \\
 \midrule
 Sampling: Greedy (T=0.0)      & XX.XX\% & XX.XX\% & XX.XX\% \\
 Sampling: T=0.7               & XX.XX\% & XX.XX\% & XX.XX\% \\
@@ -742,7 +788,27 @@ QLoRA Fine-tuned              & XX.XX\% & XX.XX\% & XX.XX\% \\
 
 The private test set (`data/private.jsonl`) has no answers — submit predicted responses to Kaggle.
 
-### Using the fine-tuned model
+### Best approach: Model 1 v2 (few-shot)
+
+Model 1 v2 is the best-performing model. It scored **0.611 on Kaggle** (private test set, `max_tokens=7168`). An earlier submission with `max_tokens=4096` scored 0.487 — raising the token limit alone added +0.124.
+
+```bash
+# Step 1: run inference on private set
+nohup python model1_prompt_engineering.py --variant v2_fewshot --data data/private.jsonl \
+    > logs/model1_v2_private.log 2>&1 &
+
+# Step 2 (optional): patch cut-off responses
+python model1_rerun_cutoffs.py \
+    --results results/model1_v2_fewshot_private_results.jsonl \
+    --data data/private.jsonl --variant v2_fewshot
+
+# Step 3: generate submission CSV
+python model1_to_submission.py \
+    --input results/model1_v2_fewshot_private_results.jsonl \
+    --output results/model1_v2_private_submission.csv
+```
+
+### Using the fine-tuned model (not recommended — low accuracy)
 
 ```bash
 python model3_finetune_infer.py \
