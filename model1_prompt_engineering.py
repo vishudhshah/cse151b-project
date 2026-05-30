@@ -270,9 +270,10 @@ def generate_chunk(llm, tokenizer, items: list[dict], cfg: dict,
 _CHUNK_SIZE = 50  # flush results to disk every N questions
 
 def run_variant(variant: str, llm, tokenizer, sampling_params: SamplingParams,
-                data: list, judger, out_dir: Path) -> dict:
+                data: list, judger, out_dir: Path, data_tag: str = "") -> dict:
     cfg      = VARIANTS[variant]
-    out_path = out_dir / f"model1_{variant}_results.jsonl"
+    tag      = f"_{data_tag}" if data_tag else ""
+    out_path = out_dir / f"model1_{variant}{tag}_results.jsonl"
 
     # Resume: load IDs already written to disk
     done_ids: set[int] = set()
@@ -392,9 +393,12 @@ def main():
     out_dir = Path("results")
     out_dir.mkdir(exist_ok=True)
 
+    # Tag output filenames when using a non-default dataset (e.g. "private")
+    data_tag = Path(args.data).stem if args.data != DATA_PATH else ""
+
     variants_to_run = list(VARIANTS) if args.variant == "all" else [args.variant]
     summary = [
-        run_variant(v, llm, tokenizer, sampling_params, data, judger, out_dir)
+        run_variant(v, llm, tokenizer, sampling_params, data, judger, out_dir, data_tag)
         for v in variants_to_run
     ]
 
