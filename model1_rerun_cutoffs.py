@@ -27,7 +27,7 @@ MODEL_ID = "Qwen/Qwen3-4B-Thinking-2507"
 
 # Short budget forces the model to wrap up quickly rather than think forever.
 SHORT_THINKING_BUDGET = 512
-SHORT_MAX_TOKENS = 2048
+SHORT_MAX_TOKENS = 4096
 
 _SAMPLING_KWARGS = dict(
     temperature=0.6,
