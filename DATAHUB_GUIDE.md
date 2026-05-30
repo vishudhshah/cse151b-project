@@ -132,10 +132,12 @@ source .venv/bin/activate
 # Install from requirements.txt — use pip (not uv) so system-site-packages deps are skipped
 pip install -r requirements.txt
 
-# vLLM is compiled against CUDA 13 but the system runtime is CUDA 12.8.
-# The CUDA 13 runtime ships inside the venv — wire it up permanently via the activate script.
+# vLLM needs two env vars wired into the activate script:
+#   1. LD_LIBRARY_PATH: vLLM 0.22 is compiled against CUDA 13; the runtime ships inside the venv.
+#   2. VLLM_USE_DEEP_GEMM=0: disables FP8 DeepGEMM warmup (not needed for bfloat16 inference).
 echo 'export LD_LIBRARY_PATH="$VIRTUAL_ENV/lib/python3.13/site-packages/nvidia/cu13/lib:$LD_LIBRARY_PATH"' >> .venv/bin/activate
-source .venv/bin/activate   # reload so the export takes effect now
+echo 'export VLLM_USE_DEEP_GEMM=0' >> .venv/bin/activate
+source .venv/bin/activate   # reload so the exports take effect now
 
 # Set HuggingFace token to avoid rate limiting (get from huggingface.co/settings/tokens)
 export HF_TOKEN=hf_your_token_here
