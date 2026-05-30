@@ -48,9 +48,9 @@ from vllm import LLM, SamplingParams
 
 MODEL_ID   = "Qwen/Qwen3-4B-Thinking-2507"
 DATA_PATH  = "data/public.jsonl"
-MAX_TOKENS = 4096
+MAX_TOKENS = 7168
 # Cap the thinking block. Remaining tokens go to the answer.
-THINKING_BUDGET = 3072
+THINKING_BUDGET = 6144
 
 # Sampling kept identical across all variants to isolate prompt effect.
 _SAMPLING_KWARGS = dict(
