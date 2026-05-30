@@ -297,13 +297,14 @@ def run_variant(variant: str, llm, tokenizer, sampling_params: SamplingParams,
                 chunk = remaining[chunk_start : chunk_start + _CHUNK_SIZE]
                 responses = generate_chunk(llm, tokenizer, chunk, cfg, sampling_params)
                 for item, response in zip(chunk, responses):
+                    has_answer = "answer" in item
                     record = {
                         "id":       item["id"],
                         "variant":  variant,
                         "is_mcq":   bool(item.get("options")),
-                        "gold":     item["answer"],
+                        "gold":     item.get("answer"),
                         "response": response,
-                        "correct":  score_response(item, response, judger),
+                        "correct":  score_response(item, response, judger) if has_answer else None,
                     }
                     f_out.write(json.dumps(record) + "\n")
                 pbar.update(len(chunk))
@@ -316,7 +317,8 @@ def run_variant(variant: str, llm, tokenizer, sampling_params: SamplingParams,
     free_res = [r for r in results if not r["is_mcq"]]
 
     def acc(subset: list) -> float:
-        return sum(r["correct"] for r in subset) / len(subset) * 100 if subset else 0.0
+        scored = [r for r in subset if r["correct"] is not None]
+        return sum(r["correct"] for r in scored) / len(scored) * 100 if scored else 0.0
 
     row = {
         "variant":   variant,
