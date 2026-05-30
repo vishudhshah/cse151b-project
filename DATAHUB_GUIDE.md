@@ -132,12 +132,18 @@ source .venv/bin/activate
 # Install from requirements.txt — use pip (not uv) so system-site-packages deps are skipped
 pip install -r requirements.txt
 
+# vLLM is compiled against CUDA 13 but the system runtime is CUDA 12.8.
+# The CUDA 13 runtime ships inside the venv — wire it up permanently via the activate script.
+echo 'export LD_LIBRARY_PATH="$VIRTUAL_ENV/lib/python3.13/site-packages/nvidia/cu13/lib:$LD_LIBRARY_PATH"' >> .venv/bin/activate
+source .venv/bin/activate   # reload so the export takes effect now
+
 # Set HuggingFace token to avoid rate limiting (get from huggingface.co/settings/tokens)
 export HF_TOKEN=hf_your_token_here
 
 # Verify
 python -c "import torch; print(torch.__version__, torch.cuda.is_available())"
-# Expected: 2.11.0+cu128  True
+python -c "from vllm import LLM; print('vllm ok')"
+# Expected: 2.11.0+cu128  True  /  vllm ok
 ```
 
 ---
