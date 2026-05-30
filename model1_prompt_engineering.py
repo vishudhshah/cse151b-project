@@ -1,13 +1,14 @@
 """
 Model 1: Prompt Engineering for CSE 151B Math Reasoning Competition
 
-Compares 4 system-prompt strategies on Qwen/Qwen3-4B-Thinking-2507:
-  v0_baseline     — exact starter-code prompts (control)
-  v1_enhanced_cot — explicit numbered step-by-step CoT instructions
-  v2_fewshot      — 2 MCQ + 2 free-form worked examples prepended to user turn
-  v3_verification — solve first, then verify before committing to final answer
+Compares 5 system-prompt strategies on Qwen/Qwen3-4B-Thinking-2507:
+  v0_baseline      — exact starter-code prompts (control)
+  v1_enhanced_cot  — explicit numbered step-by-step CoT instructions
+  v2_fewshot       — 2 MCQ + 2 free-form worked examples prepended to user turn
+  v3_verification  — solve first, then verify before committing to final answer
+  v4_fewshot_verify — v2 few-shot examples + v3 solve-then-verify system prompt
 
-All 4 variants use the same model weights and sampling parameters so that any
+All variants use the same model weights and sampling parameters so that any
 accuracy difference is attributable to the prompt alone.
 
 Usage
@@ -191,6 +192,13 @@ VARIANTS: dict[str, dict] = {
         "prefix_math": "",
         "prefix_mcq":  "",
         "description": "Solve then verify before final answer",
+    },
+    "v4_fewshot_verify": {
+        "sys_math": _V3_MATH,
+        "sys_mcq":  _V3_MCQ,
+        "prefix_math": _FEWSHOT_FREEFORM,
+        "prefix_mcq":  _FEWSHOT_MCQ,
+        "description": "2 worked examples + solve-then-verify",
     },
 }
 

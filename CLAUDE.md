@@ -30,7 +30,7 @@ python model2_sampling_voting.py --experiment voting_n3 --limit 5 --max_tokens 2
 python model3_finetune_train.py --max_steps 5 --subset 50
 python model3_finetune_infer.py --checkpoint checkpoints/model3_qlora --limit 5 --max_tokens 4096
 
-# Model 1 — all 4 prompt variants (~40 min on A30)
+# Model 1 — all 5 prompt variants (~50 min on A30)
 python model1_prompt_engineering.py --variant all
 python model1_prompt_engineering.py --variant v2_fewshot  # single variant (~10 min)
 
@@ -68,7 +68,7 @@ python model3_finetune_infer.py --checkpoint checkpoints/model3_qlora --data dat
 ### Model scripts
 The model outputs `<think>...</think>` reasoning before the final answer; the judger strips everything before `</think>` and looks for `\boxed{}`.
 
-- **`model1_prompt_engineering.py`** — 4 prompt variants (v0 baseline, v1 enhanced CoT, v2 few-shot, v3 self-verification). Uses **vLLM** (bfloat16, no quantization) for inference. Sampling fixed across all variants (`T=0.6, top_p=0.95, top_k=20`, `thinking_budget=3072`, `max_tokens=4096`). Flushes results every 50 questions for resume support. Writes `results/model1_<variant>_results.jsonl`.
+- **`model1_prompt_engineering.py`** — 5 prompt variants (v0 baseline, v1 enhanced CoT, v2 few-shot, v3 self-verification, v4 few-shot + verification). Uses **vLLM** (bfloat16, no quantization) for inference. Sampling fixed across all variants (`T=0.6, top_p=0.95, top_k=20`, `thinking_budget=3072`, `max_tokens=4096`). Flushes results every 50 questions for resume support. Writes `results/model1_<variant>_results.jsonl`.
 
 - **`model2_sampling_voting.py`** — Temperature sweep (T=0.0–0.9) and majority voting (N=3,5,7 at T=0.7). Uses **vLLM** with `SamplingParams(n=N)` so all N voting samples are generated in a single engine call per chunk (much faster than N sequential calls). Voting extracts `\boxed{}` from each sample, normalizes via `judger.norm_ans_str()`, and takes the modal answer. Writes `results/model2_<experiment>_results.jsonl`.
 
