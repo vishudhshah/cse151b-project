@@ -173,7 +173,7 @@ python model3_finetune_train.py --max_steps 5 --subset 50
 python model3_finetune_infer.py --checkpoint checkpoints/model3_qlora --limit 5 --max_tokens 2048
 ```
 
-> **Progress bar looks stuck on first question?** Normal — the thinking model generates a long `<think>` block before answering. The bar only ticks after each complete batch. Expect ~80–150 s/batch on A30; the ETA shown after the first few batches is reliable.
+> **Progress bar looks stuck?** Normal — the thinking model generates a long `<think>` block before answering. vLLM processes the whole chunk in parallel so the bar jumps 50 at a time. The ETA shown after the first chunk is reliable.
 
 ### Full experiment run
 
@@ -196,7 +196,7 @@ echo "Model 1 PID: $!"
 nohup python model2_sampling_voting.py --experiment voting_n3 > logs/model2_vote3.log 2>&1 &
 ```
 
-> **If any inference script crashes with `torch.cuda.OutOfMemoryError`:** the GPU ran out of VRAM from holding two questions in memory simultaneously. Re-run with `--batch_size 1` — it processes one question at a time and resumes from where it left off. This applies to all three scripts (model1, model2, model3).
+> **If an inference script crashes with `torch.cuda.OutOfMemoryError`:** reduce vLLM's GPU memory fraction by adding `gpu_memory_utilization=0.85` (or lower) in the script's `LLM(...)` call, then re-run — resume behavior will skip already-completed questions.
 
 Monitor any job:
 ```bash
@@ -209,16 +209,19 @@ kubectl delete pod <pod-name>        # manually terminate a pod when done
 
 > Check GPU availability before launching: [datahub.ucsd.edu/hub/status](https://datahub.ucsd.edu/hub/status) (requires UCSD login).
 
-### Time estimates (A30 GPU)
+### Time estimates (A30 24 GB, vLLM, bfloat16)
 
 | Step | Est. time |
 |------|-----------|
 | Model 3 — training (3 epochs) | ~10 hours |
-| Model 1 — one variant (thinking_budget=3072) | ~12–15 hours |
-| Model 2 — voting N=3 (with thinking_budget fix) | ~55–65 hours |
-| Model 3 — inference | ~12–15 hours |
+| Model 1 — one variant | ~10 min |
+| Model 1 — all 4 variants | ~40 min |
+| Model 2 — voting N=3 | ~15 min |
+| Model 2 — voting N=5 | ~25 min |
+| Model 2 — temp sweep (5 temps) | ~15 min |
+| Model 3 — inference | ~10 min |
 
-> **Why so long?** Qwen3-Thinking generates a long `<think>` block per question. Model 1 caps this with `thinking_budget=3072`. Models 2 and 3 do not — add `--max_tokens 4096` to those scripts if you need faster turnaround at a small accuracy cost.
+> All inference scripts use vLLM (PagedAttention, continuous batching) with `thinking_budget=3072` and `max_tokens=4096`. Model 2 voting generates all N samples in a single engine call via `SamplingParams(n=N)`.
 
 ---
 

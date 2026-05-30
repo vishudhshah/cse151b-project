@@ -656,7 +656,7 @@ Evaluation: unified accuracy (correct/total, each question weighted equally).
 > We sweep temperature from 0.0 (greedy) to 0.9 to identify the optimal single-sample regime. We then apply self-consistency [cite Wang 2023] with N=3, 5, 7 samples at T=0.7: multiple independent responses are generated and the modal answer is selected.
 
 **Model 3 — QLoRA Fine-Tuning**: *(~3 paragraphs)*
-> We fine-tune using QLoRA [cite Dettmers 2023] on the MATH dataset [cite Hendrycks 2021] (7,500 competition math problems). The base model is frozen in 4-bit; LoRA adapters (rank 16, alpha 32) are trained on all attention projection and FFN layers. Training uses paged AdamW with `lr=2×10⁻⁴`, cosine schedule, effective batch size 8, for 3 epochs. Training samples are formatted with the MATH solution inside `<think>...</think>` and the boxed answer outside, matching the model's inference-time output format. Loss is computed on the full sequence (TRL 1.4.0 removed the completion-only collator). Inference uses `enable_thinking=True` and `max_new_tokens=16384` to allow complete reasoning traces.
+> We fine-tune using QLoRA [cite Dettmers 2023] on the MATH dataset [cite Hendrycks 2021] (7,500 competition math problems). The base model is frozen in 4-bit; LoRA adapters (rank 16, alpha 32) are trained on all attention projection and FFN layers. Training uses paged AdamW with `lr=2×10⁻⁴`, cosine schedule, effective batch size 8, for 3 epochs. Training samples are formatted with the MATH solution inside `<think>...</think>` and the boxed answer outside, matching the model's inference-time output format. Loss is computed on the full sequence (TRL 1.4.0 removed the completion-only collator). Inference uses vLLM with `enable_thinking=True`, `thinking_budget=3072`, and `max_tokens=4096`.
 
 ---
 
@@ -675,14 +675,15 @@ Local evaluation on `public.jsonl` (1,126 questions). The judger handles symboli
 
 | | Baseline | Model 1 | Model 2 | Model 3 |
 |---|---|---|---|---|
-| GPU | A100 | A100 | A100 | A100 |
-| Quantization | INT4 | INT4 | INT4 | INT4 base + BF16 adapter |
+| GPU | A30 | A30 | A30 | A30 |
+| Inference engine | HF generate | vLLM (BF16) | vLLM (BF16) | vLLM (BF16) |
+| Training quantization | — | — | — | INT4 NF4 base + BF16 adapter |
 | Temperature | 0.6 | 0.6 | 0.7 (voting) | 0.6 |
 | Samples/question | 1 | 1 | N=5 | 1 |
 | Fine-tuning data | — | — | — | MATH (7,500) |
 | LoRA rank | — | — | — | 16 |
 | Epochs | — | — | — | 3 |
-| Runtime | ~12 min | ~12 min/variant | ~60 min | ~6 hr train + ~12 min infer |
+| Runtime | ~12 min | ~10 min/variant | ~25 min (N=5) | ~10 hr train + ~10 min infer |
 
 **Results table** — fill in XX.XX with actual numbers from the JSONL files:
 

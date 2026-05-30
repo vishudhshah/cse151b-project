@@ -43,31 +43,29 @@
 See [`DATAHUB_GUIDE.md`](DATAHUB_GUIDE.md) for the full setup. Quick version:
 
 ```bash
-uv venv .venv --seed && source .venv/bin/activate
-uv pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/cu121
-uv pip install sympy numpy transformers tqdm "bitsandbytes>=0.46.1" \
-    antlr4-python3-runtime==4.11.1 accelerate peft trl datasets
+uv venv .venv --seed --system-site-packages && source .venv/bin/activate
+pip install -r requirements.txt
 ```
 
 ## Quick Commands
 
 ```bash
-# Smoke test — confirm everything works (runs in ~2 min)
+# Smoke test — confirm everything works (~2 min)
 python model1_prompt_engineering.py --variant v0_baseline --limit 5
 
-# Model 1 — all 4 prompt variants (~50 min)
+# Model 1 — all 4 prompt variants (~40 min)
 python model1_prompt_engineering.py --variant all
 
-# Model 2 — temperature sweep (~60 min)
+# Model 2 — temperature sweep (~15 min)
 python model2_sampling_voting.py --experiment temp_sweep
 
-# Model 2 — majority voting, 5 samples (~60 min)
+# Model 2 — majority voting, 5 samples (~25 min)
 python model2_sampling_voting.py --experiment voting_n5
 
-# Model 3 — fine-tune (~6 hours)
+# Model 3 — fine-tune (~10 hours)
 python model3_finetune_train.py --epochs 3
 
-# Model 3 — inference with fine-tuned model (~12 min)
+# Model 3 — inference with fine-tuned model (~10 min)
 python model3_finetune_infer.py --checkpoint checkpoints/model3_qlora
 ```
 
