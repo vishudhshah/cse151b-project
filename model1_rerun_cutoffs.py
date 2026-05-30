@@ -28,7 +28,7 @@ MODEL_ID = "Qwen/Qwen3-4B-Thinking-2507"
 # Disable thinking entirely so the model answers directly (~50-200 tokens).
 # These questions already exceeded max_tokens=7168 in the main run, so no
 # thinking budget will help — the only guarantee of completion is no thinking.
-SHORT_MAX_TOKENS = 2048
+SHORT_MAX_TOKENS = 4096
 SHORT_ENABLE_THINKING = False
 
 _SAMPLING_KWARGS = dict(
