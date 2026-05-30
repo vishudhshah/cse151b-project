@@ -25,9 +25,11 @@ from vllm import LLM, SamplingParams
 
 MODEL_ID = "Qwen/Qwen3-4B-Thinking-2507"
 
-# Short budget forces the model to wrap up quickly rather than think forever.
-SHORT_THINKING_BUDGET = 512
-SHORT_MAX_TOKENS = 4096
+# Disable thinking entirely so the model answers directly (~50-200 tokens).
+# These questions already exceeded max_tokens=7168 in the main run, so no
+# thinking budget will help — the only guarantee of completion is no thinking.
+SHORT_MAX_TOKENS = 2048
+SHORT_ENABLE_THINKING = False
 
 _SAMPLING_KWARGS = dict(
     temperature=0.6,
@@ -110,8 +112,7 @@ def main():
                      {"role": "user",   "content": usr_p}],
                     tokenize=False,
                     add_generation_prompt=True,
-                    enable_thinking=True,
-                    thinking_budget=SHORT_THINKING_BUDGET,
+                    enable_thinking=SHORT_ENABLE_THINKING,
                 )
             )
         outputs = llm.generate(prompts, sampling_params)
