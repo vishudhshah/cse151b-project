@@ -11,9 +11,6 @@ __pycache__/
 *.bin
 *.onnx
 
-# Local setup
-constraints.txt
-
 # Jupyter
 .ipynb_checkpoints/
 
