@@ -7,6 +7,39 @@
 
 ---
 
+## Final Submission
+
+**Strategy**: Model 1 `v2_fewshot` — few-shot examples + enhanced chain-of-thought on the base `Qwen/Qwen3-4B-Thinking-2507` model (no fine-tuning).
+
+### GPU & inference time
+
+GPU: **NVIDIA A30 24 GB**. Approximate inference time on the full private set: **~10 minutes**.
+
+### Model weights
+
+No manual download needed. The base model (`Qwen/Qwen3-4B-Thinking-2507`) is downloaded automatically from HuggingFace Hub on first run. To avoid rate limits, set your token beforehand:
+
+```bash
+export HF_TOKEN=hf_your_token_here
+```
+
+### Reproducing the submission
+
+```python
+from run_inference import run_inference
+run_inference()  # reads data/private.jsonl, writes results/model1_submission.csv
+```
+
+Or from the command line:
+
+```bash
+python run_inference.py
+# public set (prints accuracy for verification):
+python run_inference.py --data data/public.jsonl
+```
+
+---
+
 ## Repository Structure
 
 ```
@@ -27,7 +60,8 @@
 ├── judger.py                         # Answer-scoring logic (do not modify)
 ├── utils.py                          # LaTeX / math normalization utilities
 │
-├── model1_prompt_engineering.py  # Model 1: 4 prompt variants compared
+├── run_inference.py              # ← Final submission entry point (run_inference())
+├── model1_prompt_engineering.py  # Model 1: 5 prompt variants compared
 ├── model2_sampling_voting.py     # Model 2: temperature sweep + majority voting
 ├── model3_finetune_train.py      # Model 3: QLoRA fine-tuning (training)
 ├── model3_finetune_infer.py      # Model 3: inference with fine-tuned model
